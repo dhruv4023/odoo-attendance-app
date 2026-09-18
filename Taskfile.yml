@@ -1,0 +1,54 @@
+version: '3'
+
+vars:
+  APP_NAME: "odoo-attendance-app"
+  BIN_DIR: "bin"
+  PACKAGE_MANAGER: '{{.PACKAGE_MANAGER | default "npm"}}'
+  VITE_PORT: '{{.WAILS_VITE_PORT | default 9245}}'
+  GOOS: 'linux'
+
+includes:
+  common: ./build/Taskfile.yml
+  linux: ./build/linux/Taskfile.yml
+
+tasks:
+  build:
+    summary: "Builds the application for Linux (default: GTK4 / Ubuntu 24.04+)"
+    cmds:
+      - task: "linux:build"
+
+  'build:ubuntu-24':
+    summary: Builds the application for Ubuntu 24.04+ (GTK4)
+    cmds:
+      - task: "linux:build"
+        vars:
+          OUTPUT: "{{.BIN_DIR}}/odoo-attendance-app-24"
+
+  'build:ubuntu-22':
+    summary: Builds the application for Ubuntu 22.04 / Debian 12 (GTK3)
+    cmds:
+      - task: "linux:build"
+        vars:
+          EXTRA_TAGS: "gtk3"
+          OUTPUT: "{{.BIN_DIR}}/odoo-attendance-app-22"
+
+  package:
+    summary: Packages a production build of the application for Linux
+    cmds:
+      - task: "linux:package"
+
+  'package:deb':
+    summary: Packages a .deb Debian/Ubuntu package for Linux
+    cmds:
+      - task: "linux:create:deb"
+
+
+  run:
+    summary: Runs the application on Linux
+    cmds:
+      - task: "linux:run"
+
+  dev:
+    summary: Runs the application in development mode
+    cmds:
+      - wails3 dev -config ./build/config.yml -port {{.VITE_PORT}}

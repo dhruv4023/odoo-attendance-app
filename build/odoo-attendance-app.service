@@ -1,0 +1,26 @@
+[Unit]
+Description=Odoo Attendance App
+Documentation=https://github.com/your-org/odoo-attendance-app
+# Start after the graphical session is available.
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/odoo-attendance-app
+WorkingDirectory=%h
+# Restart only on unexpected crashes, not on clean Quit.
+Restart=on-failure
+RestartSec=5
+# Environment variables required for GTK/WebKit GUI apps.
+# On X11:
+Environment=DISPLAY=:0
+# On Wayland (uncomment if using Wayland):
+# Environment=WAYLAND_DISPLAY=wayland-0
+# D-Bus session bus address (needed for D-Bus calls and notifications).
+# systemd will import this automatically if you have run:
+#   systemctl --user import-environment DBUS_SESSION_BUS_ADDRESS
+PassEnvironment=DBUS_SESSION_BUS_ADDRESS DISPLAY WAYLAND_DISPLAY XDG_RUNTIME_DIR XDG_CONFIG_HOME XDG_DATA_HOME HOME
+
+[Install]
+WantedBy=graphical-session.target

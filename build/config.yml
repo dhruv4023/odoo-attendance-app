@@ -1,0 +1,10 @@
+version: '3'
+
+info:
+  companyName: "Odoo"
+  productName: "odoo-attendance-app"
+  productIdentifier: "com.odoo.attendance.app"
+  description: "Check-in/check-out work schedule reminder for Linux"
+  copyright: "© 2025 Odoo"
+  comments: "Work schedule reminder with system tray and shutdown interception"
+  version: "1.0.0"

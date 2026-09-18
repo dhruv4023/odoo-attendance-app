@@ -1,0 +1,11 @@
+[Desktop Entry]
+Version=1.0
+Name=Odoo Attendance App
+Comment=Check-in/check-out work schedule reminder
+# The Exec line includes %u to pass the URL to the application
+Exec=odoo-attendance-app %u
+Terminal=false
+Type=Application
+Icon=odoo-attendance-app
+Categories=Utility;
+StartupWMClass=odoo-attendance-app
