@@ -1,0 +1,10 @@
+version: '3'
+
+info:
+  companyName: "TimeCheck"
+  productName: "TimeCheck"
+  productIdentifier: "com.timecheck.app"
+  description: "Check-in/check-out work schedule reminder for Linux"
+  copyright: "© 2025 TimeCheck"
+  comments: "Work schedule reminder with system tray and shutdown interception"
+  version: "1.0.0"
