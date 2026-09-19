@@ -324,3 +324,26 @@ func TestScheduler_ReminderEmitsEvent(t *testing.T) {
 		t.Error("expected reminder-triggered event to be emitted")
 	}
 }
+
+func TestScheduler_SkipsReminder_WhenAlreadyCheckedIn(t *testing.T) {
+	now := time.Date(2026, 9, 14, 9, 30, 0, 0, time.Local)
+	dir := t.TempDir()
+	store, _ := storage.NewFileStoreAt(dir)
+	clock := &fakeClock{now: now}
+	att, _ := attendance.NewManager(store, clock)
+	_ = att.CheckIn() // user already checked in before scheduled time
+	notifier := &fakeNotifier{}
+	emitter := &fakeEmitter{}
+
+	s := scheduler.NewScheduler(clock, immediateTimer{}, notifier, emitter, att, store)
+	s.Start(mondaySchedule())
+	defer s.Stop()
+
+	time.Sleep(50 * time.Millisecond)
+
+	for _, c := range notifier.calls {
+		if c == "Check In Reminder" {
+			t.Error("expected check-in notification to be skipped when user is already checked in")
+		}
+	}
+}

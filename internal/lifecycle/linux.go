@@ -21,8 +21,9 @@ const (
 // It intercepts GNOME Shell logout, power off, and restart actions via a local D-Bus interface
 // before GNOME starts the end-session flow.
 type LinuxLifecycleManager struct {
-	emitter       EventEmitter
-	promptChecker PromptChecker
+	emitter              EventEmitter
+	promptChecker        PromptChecker
+	checkInPromptChecker PromptChecker
 
 	mu                sync.Mutex
 	state             State
@@ -43,11 +44,18 @@ func NewLinuxLifecycleManager(emitter EventEmitter) *LinuxLifecycleManager {
 	}
 }
 
-// SetPromptChecker sets a callback that returns true if a reminder dialog should be prompted.
+// SetPromptChecker sets a fallback or checkout callback that returns true if a reminder dialog should be prompted.
 func (m *LinuxLifecycleManager) SetPromptChecker(fn PromptChecker) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.promptChecker = fn
+}
+
+// SetCheckInPromptChecker sets a dedicated callback that returns true if a login check-in reminder should be prompted.
+func (m *LinuxLifecycleManager) SetCheckInPromptChecker(fn PromptChecker) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.checkInPromptChecker = fn
 }
 
 func (m *LinuxLifecycleManager) shouldPromptCheckOutLocked() bool {
@@ -58,6 +66,9 @@ func (m *LinuxLifecycleManager) shouldPromptCheckOutLocked() bool {
 }
 
 func (m *LinuxLifecycleManager) shouldPromptCheckInLocked() bool {
+	if m.checkInPromptChecker != nil {
+		return m.checkInPromptChecker()
+	}
 	if m.promptChecker != nil {
 		return m.promptChecker()
 	}

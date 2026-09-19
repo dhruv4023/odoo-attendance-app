@@ -190,6 +190,24 @@ func (s *Scheduler) onTimer(et schedule.EventType) {
 		return
 	}
 
+	// For check-in: skip notification if user is already checked in today.
+	if et == schedule.EventCheckIn && s.attendance != nil && s.attendance.IsCheckedIn() {
+		s.markSent(et)
+		_ = s.persistReminderState()
+		s.mu.Unlock()
+		s.scheduleNext()
+		return
+	}
+
+	// For check-out: skip notification if user is already checked out today.
+	if et == schedule.EventCheckOut && s.attendance != nil && s.attendance.IsCheckedOut() {
+		s.markSent(et)
+		_ = s.persistReminderState()
+		s.mu.Unlock()
+		s.scheduleNext()
+		return
+	}
+
 	// Mark as sent before releasing lock.
 	s.markSent(et)
 	if err := s.persistReminderState(); err != nil {

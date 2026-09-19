@@ -85,7 +85,7 @@ export const LoginOverlay: React.FC<LoginOverlayProps> = ({ isOpen, onClose }) =
             disabled={loading}
             className="flex-1 inline-flex items-center justify-center gap-2 py-2 px-3.5 rounded-xl font-semibold text-xs bg-slate-800 hover:bg-slate-700 active:scale-95 disabled:opacity-50 text-slate-200 border border-slate-700 transition-all cursor-pointer"
           >
-            <span>Continue</span>
+            <span>Skip</span>
             <ArrowRight className="w-3.5 h-3.5" />
           </button>
         </div>

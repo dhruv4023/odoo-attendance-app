@@ -91,6 +91,28 @@ func TestLifecycle_Login_SkippedWhenAlreadyCheckedIn(t *testing.T) {
 	}
 }
 
+func TestLifecycle_Login_DedicatedCheckInChecker(t *testing.T) {
+	emitter := &fakeEmitter{}
+	mgr := lifecycle.NewLinuxLifecycleManager(emitter)
+	// fallback prompt checker returns false, but dedicated check-in checker returns true
+	mgr.SetPromptChecker(func() bool {
+		return false
+	})
+	mgr.SetCheckInPromptChecker(func() bool {
+		return true
+	})
+
+	mgr.CheckLoginReminder()
+
+	if mgr.GetState() != lifecycle.StateCheckingIn {
+		t.Errorf("expected StateCheckingIn, got %v", mgr.GetState())
+	}
+	evts := emitter.Events()
+	if len(evts) != 1 || evts[0] != "login-requested" {
+		t.Fatalf("expected [login-requested], got %v", evts)
+	}
+}
+
 func TestLifecycle_Login_UserCheckIn(t *testing.T) {
 	emitter := &fakeEmitter{}
 	mgr := lifecycle.NewLinuxLifecycleManager(emitter)

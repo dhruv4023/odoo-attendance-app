@@ -163,6 +163,10 @@ func (a *AppService) Startup(app *application.App) error {
 	lm := lifecycle.NewLinuxLifecycleManager(
 		&showWindowEmitter{svc: a, delegate: a.emitter},
 	)
+	lm.SetCheckInPromptChecker(func() bool {
+		// Only prompt check-in dialog on login if the user has not checked in today.
+		return !a.attendance.IsCheckedIn()
+	})
 	lm.SetPromptChecker(func() bool {
 		threshold := a.settings.GetLogThreshold()
 		return a.attendance.ShouldPromptDialog(threshold)
@@ -173,8 +177,8 @@ func (a *AppService) Startup(app *application.App) error {
 		log.Printf("startup: lifecycle: %v (lifecycle interception may be unavailable)", err)
 	}
 
-	// Daily reset loop in background.
-	go a.dailyResetLoop()
+	// Midnight reset loop in background (for 24/7 always-on machines).
+	go a.midnightResetLoop()
 
 	// Emit initial status once the windows are ready.
 	go func() {
@@ -228,17 +232,23 @@ func (a *AppService) Shutdown() {
 	}
 }
 
-// dailyResetLoop checks for day transitions every minute.
-func (a *AppService) dailyResetLoop() {
-	ticker := time.NewTicker(time.Minute)
-	defer ticker.Stop()
-	for range ticker.C {
+// midnightResetLoop sleeps until midnight to roll over the day and notify the UI (for 24/7 always-on machines).
+func (a *AppService) midnightResetLoop() {
+	for {
+		now := time.Now()
+		nextMidnight := time.Date(now.Year(), now.Month(), now.Day()+1, 0, 0, 1, 0, now.Location())
+		sleepDuration := time.Until(nextMidnight)
+		if sleepDuration <= 0 {
+			sleepDuration = time.Second
+		}
+
+		time.Sleep(sleepDuration)
+
 		if err := a.attendance.ResetIfNewDay(); err != nil {
-			log.Printf("dailyReset: %v", err)
+			log.Printf("midnightReset: %v", err)
 		}
 		if a.lifecycle != nil {
 			a.lifecycle.ResetLoginReminder()
-			a.lifecycle.CheckLoginReminder()
 			a.lifecycle.ArmInhibitors()
 		}
 		a.emitter.Emit("status-changed", a.attendance.GetStatus())
