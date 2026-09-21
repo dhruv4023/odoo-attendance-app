@@ -46,6 +46,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onBack }) => {
   const [logThresholdMinutes, setLogThresholdMinutes] = useState(3);
   const [checkOutWindowBeforeMinutes, setCheckOutWindowBeforeMinutes] = useState(0);
   const [checkOutWindowAfterMinutes, setCheckOutWindowAfterMinutes] = useState(30);
+  const [snoozeDurationMinutes, setSnoozeDurationMinutes] = useState(10);
   const [appInfo, setAppInfo] = useState<AppInfo | null>(null);
 
   const [saving, setSaving] = useState(false);
@@ -76,6 +77,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onBack }) => {
         }
         if (setts?.check_out_window_after_minutes !== undefined) {
           setCheckOutWindowAfterMinutes(setts.check_out_window_after_minutes);
+        }
+        if (setts?.snooze_duration_minutes !== undefined) {
+          setSnoozeDurationMinutes(setts.snooze_duration_minutes);
         }
 
         if (typeof AppService.GetAppInfo === 'function') {
@@ -163,6 +167,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onBack }) => {
       newErrors.window = 'After check-out window must be 0 or greater';
     }
 
+    if (isNaN(snoozeDurationMinutes) || snoozeDurationMinutes < 1) {
+      newErrors.snooze = 'Snooze duration must be at least 1 minute';
+    }
+
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
       return;
@@ -178,6 +186,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onBack }) => {
         log_threshold_minutes: Number(logThresholdMinutes) || 3,
         check_out_window_before_minutes: Number(checkOutWindowBeforeMinutes) ?? 0,
         check_out_window_after_minutes: Number(checkOutWindowAfterMinutes) ?? 30,
+        snooze_duration_minutes: Number(snoozeDurationMinutes) || 10,
       });
       showMsg('Settings saved successfully!');
     } catch (e: any) {
@@ -357,6 +366,35 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onBack }) => {
             Shows reminder dialog on login / logout / shutdown only if no check-in or check-out log was added in the last {logThresholdMinutes} minute{logThresholdMinutes === 1 ? '' : 's'}.
           </p>
           {errors.threshold && <p className="text-[11px] text-rose-400 mt-1">{errors.threshold}</p>}
+        </div>
+      </div>
+
+      {/* Snooze Duration Card */}
+      <div className="rounded-2xl bg-slate-900/80 border border-slate-800/80 p-4 shadow-lg flex flex-col gap-3">
+        <h2 className="text-xs font-bold tracking-wider uppercase text-slate-400 flex items-center gap-1.5">
+          <Clock className="w-3.5 h-3.5 text-amber-400" />
+          Reminder Snooze Duration
+        </h2>
+
+        <div>
+          <label className="block text-xs font-medium text-slate-400 mb-1">
+            Snooze Time (minutes)
+          </label>
+          <div className="flex items-center gap-2.5">
+            <input
+              type="number"
+              min={1}
+              max={1440}
+              value={snoozeDurationMinutes}
+              onChange={e => setSnoozeDurationMinutes(Math.max(1, parseInt(e.target.value, 10) || 1))}
+              className="w-24 bg-slate-950 border border-slate-700/80 text-slate-200 text-xs rounded-xl px-3 py-2 outline-none focus:border-amber-400 font-mono"
+            />
+            <span className="text-xs text-slate-400">minutes</span>
+          </div>
+          <p className="text-[11px] text-slate-500 mt-1.5">
+            When clicking Snooze on a check-in or check-out reminder, the dialog will re-appear after {snoozeDurationMinutes} minute{snoozeDurationMinutes === 1 ? '' : 's'} if still not checked in/out.
+          </p>
+          {errors.snooze && <p className="text-[11px] text-rose-400 mt-1">{errors.snooze}</p>}
         </div>
       </div>
 

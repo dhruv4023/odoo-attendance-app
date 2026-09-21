@@ -222,6 +222,17 @@ func TestDefaultSettings(t *testing.T) {
 	if s.Schedule.Saturday.Enabled {
 		t.Error("expected Saturday disabled")
 	}
+	if s.GetSnoozeDuration() != 10*time.Minute {
+		t.Errorf("expected 10 minute default snooze, got %v", s.GetSnoozeDuration())
+	}
+	s.SnoozeDurationMinutes = 5
+	if s.GetSnoozeDuration() != 5*time.Minute {
+		t.Errorf("expected 5 minute snooze, got %v", s.GetSnoozeDuration())
+	}
+	s.SnoozeDurationMinutes = 0
+	if s.GetSnoozeDuration() != 10*time.Minute {
+		t.Errorf("expected fallback 10 minute snooze, got %v", s.GetSnoozeDuration())
+	}
 }
 
 func TestValidate_JoinedErrors(t *testing.T) {

@@ -49,6 +49,7 @@ type Settings struct {
 	LogThresholdMinutes         int      `json:"log_threshold_minutes"`
 	CheckOutWindowBeforeMinutes int      `json:"check_out_window_before_minutes"`
 	CheckOutWindowAfterMinutes  int      `json:"check_out_window_after_minutes"`
+	SnoozeDurationMinutes       int      `json:"snooze_duration_minutes"`
 }
 
 // GetLogThreshold returns the threshold duration without a log before showing reminder dialogs.
@@ -57,6 +58,14 @@ func (s Settings) GetLogThreshold() time.Duration {
 		return 3 * time.Minute
 	}
 	return time.Duration(s.LogThresholdMinutes) * time.Minute
+}
+
+// GetSnoozeDuration returns the snooze duration before re-prompting reminders.
+func (s Settings) GetSnoozeDuration() time.Duration {
+	if s.SnoozeDurationMinutes <= 0 {
+		return 10 * time.Minute
+	}
+	return time.Duration(s.SnoozeDurationMinutes) * time.Minute
 }
 
 // GetCheckOutWindowBefore returns the duration before check-out time when check-out reminders should start.
@@ -94,6 +103,7 @@ func DefaultSettings() Settings {
 		LogThresholdMinutes:         3,
 		CheckOutWindowBeforeMinutes: 0,
 		CheckOutWindowAfterMinutes:  30,
+		SnoozeDurationMinutes:       10,
 	}
 }
 

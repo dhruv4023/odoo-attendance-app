@@ -10,6 +10,8 @@ declare module '*/bindings/time-check/appservice.js' {
   export function GetAutostartEnabled(): Promise<any>;
   export function LoginCheckIn(): Promise<any>;
   export function LoginContinue(): Promise<any>;
+  export function SnoozeCheckIn(): Promise<any>;
+  export function SnoozeCheckOut(): Promise<any>;
   export function AbortAction(): Promise<any>;
   export function ProceedAction(): Promise<any>;
   export function ShutdownCheckOut(): Promise<any>;
