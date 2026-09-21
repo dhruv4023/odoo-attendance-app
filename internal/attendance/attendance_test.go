@@ -280,4 +280,3 @@ func TestLastLogTime_And_HasRecentLog(t *testing.T) {
 		t.Error("expected ShouldPromptDialog to be true 5 minutes after checkout")
 	}
 }
-

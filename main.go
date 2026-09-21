@@ -75,11 +75,15 @@ func main() {
 		},
 	})
 
-	// ── Single Main Window (Always Fullscreen) ──────────────────────────────
+	// ── Single Main Window (Maximised) ──────────────────────────────────────
 	mainWin := app.Window.NewWithOptions(application.WebviewWindowOptions{
 		Title:            "TimeCheck",
 		Name:             "main",
-		StartState:       application.WindowStateFullscreen,
+		Width:            1024,
+		Height:           768,
+		MinWidth:         600,
+		MinHeight:        400,
+		StartState:       application.WindowStateMaximised,
 		Hidden:           true,
 		HideOnEscape:     true,
 		URL:              "/",
@@ -110,7 +114,6 @@ func main() {
 		app.Quit()
 	})
 	tray.SetMenu(menu)
-
 
 	// ── Start background services ────────────────────────────────────────────
 

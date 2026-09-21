@@ -34,14 +34,14 @@ func (n *DBusNotifier) Notify(title, body string) error {
 	}
 	obj := conn.Object("org.freedesktop.Notifications", "/org/freedesktop/Notifications")
 	call := obj.Call("org.freedesktop.Notifications.Notify", 0,
-		"TimeCheck", // app_name
-		uint32(0),            // replaces_id
-		"",                   // app_icon
-		title,                // summary
-		body,                 // body
-		[]string{},           // actions
+		"TimeCheck",               // app_name
+		uint32(0),                 // replaces_id
+		"",                        // app_icon
+		title,                     // summary
+		body,                      // body
+		[]string{},                // actions
 		map[string]dbus.Variant{}, // hints
-		int32(10000),         // expire_timeout (ms)
+		int32(10000),              // expire_timeout (ms)
 	)
 	if call.Err != nil {
 		return fmt.Errorf("dbus notify: %w", call.Err)

@@ -4,6 +4,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -25,11 +26,11 @@ type LinuxLifecycleManager struct {
 	promptChecker        PromptChecker
 	checkInPromptChecker PromptChecker
 
-	mu               sync.Mutex
-	state            State
-	lastAction       ActionType
-	loginHandled     bool
-	sessionConn      *dbus.Conn
+	mu           sync.Mutex
+	state        State
+	lastAction   ActionType
+	loginHandled bool
+	sessionConn  *dbus.Conn
 	// pendingDecisionCh is non-nil only while a checkout dialog is active.
 	// Concurrent D-Bus requests while a dialog is already pending must
 	// fail-open (return "proceed") rather than queue or spawn a new dialog.
@@ -78,13 +79,24 @@ func (m *LinuxLifecycleManager) shouldPromptCheckInLocked() bool {
 	return false
 }
 
+// isGnomeSession checks whether the current environment is GNOME/Ubuntu desktop.
+func isGnomeSession() bool {
+	xdg := strings.ToLower(os.Getenv("XDG_CURRENT_DESKTOP"))
+	sess := strings.ToLower(os.Getenv("DESKTOP_SESSION"))
+	return strings.Contains(xdg, "gnome") ||
+		strings.Contains(xdg, "ubuntu") ||
+		strings.Contains(sess, "gnome") ||
+		strings.Contains(sess, "ubuntu") ||
+		os.Getenv("GNOME_DESKTOP_SESSION_ID") != ""
+}
+
 // Start registers the session D-Bus service com.odoo.TimeCheck and starts listeners.
 func (m *LinuxLifecycleManager) Start() error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	// 1. Install & enable GNOME Shell extension if in GNOME session
-	if os.Getenv("XDG_CURRENT_DESKTOP") == "GNOME" || os.Getenv("GNOME_DESKTOP_SESSION_ID") != "" || os.Getenv("DESKTOP_SESSION") == "gnome" || os.Getenv("DESKTOP_SESSION") == "ubuntu" {
+	if isGnomeSession() {
 		if err := InstallAndEnableExtension(); err != nil {
 			log.Printf("lifecycle: install GNOME extension: %v", err)
 		}
@@ -203,6 +215,12 @@ func (m *LinuxLifecycleManager) RequestAction(action string) (string, *dbus.Erro
 		return "proceed", nil
 	}
 
+	if m.state == StateAllowExit {
+		m.mu.Unlock()
+		log.Printf("lifecycle: already in StateAllowExit; proceeding with action %s without prompting again", act)
+		return "proceed", nil
+	}
+
 	m.lastAction = act
 
 	// 2. Check if attendance checkout is required
@@ -239,6 +257,15 @@ func (m *LinuxLifecycleManager) RequestAction(action string) (string, *dbus.Erro
 		m.mu.Lock()
 		if decision == "proceed" {
 			m.state = StateAllowExit
+			go func() {
+				time.Sleep(15 * time.Second)
+				m.mu.Lock()
+				if m.state == StateAllowExit {
+					m.state = StateRunning
+					log.Println("lifecycle: StateAllowExit reset back to StateRunning after cooldown")
+				}
+				m.mu.Unlock()
+			}()
 		} else {
 			m.state = StateRunning
 		}
@@ -337,6 +364,15 @@ func (m *LinuxLifecycleManager) ProceedAction() {
 
 	log.Println("lifecycle: user chose skip; proceeding with original GNOME action")
 	m.state = StateAllowExit
+	go func() {
+		time.Sleep(15 * time.Second)
+		m.mu.Lock()
+		if m.state == StateAllowExit {
+			m.state = StateRunning
+			log.Println("lifecycle: StateAllowExit reset back to StateRunning after cooldown")
+		}
+		m.mu.Unlock()
+	}()
 	m.resolveDecisionLocked("proceed")
 	m.emitter.Emit("shutdown-dialog-closed", "continue")
 }

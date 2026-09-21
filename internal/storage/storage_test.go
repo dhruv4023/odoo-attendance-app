@@ -171,4 +171,3 @@ func TestStorage_SymlinkProtection(t *testing.T) {
 		t.Errorf("target file was overwritten through symlink! Content: %s", string(targetContent))
 	}
 }
-

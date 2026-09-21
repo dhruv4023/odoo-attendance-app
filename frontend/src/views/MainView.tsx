@@ -266,17 +266,6 @@ export const MainView: React.FC<MainViewProps> = ({
             <span className="hidden md:inline">Settings</span>
           </button>
         </div>
-
-        {/* Top-Right Minimize to Tray Button */}
-        <button
-          type="button"
-          onClick={handleMinimize}
-          className="p-2.5 rounded-xl bg-slate-900/80 border border-slate-800 text-slate-400 hover:text-slate-100 hover:bg-slate-800/80 hover:border-slate-700 transition-all cursor-pointer flex items-center gap-2 text-xs"
-          title="Minimize to System Tray"
-        >
-          <span className="hidden sm:inline text-[11px] font-medium text-slate-400">Minimize</span>
-          <Minimize2 className="w-4 h-4" />
-        </button>
       </header>
 
       {/* Toast Notification */}

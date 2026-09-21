@@ -53,7 +53,3 @@ func ValidateAction(raw string) (ActionType, bool) {
 		return "", false
 	}
 }
-
-
-
-

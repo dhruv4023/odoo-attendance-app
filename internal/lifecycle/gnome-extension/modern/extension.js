@@ -167,13 +167,12 @@ export default class TimeCheckAttendanceExtension extends Extension {
     }
 
     // _safeProceed increments _bypassDepth so that any re-entrant intercept
-    // call triggered by proceedFn (e.g. GNOME calling back into activateLogout)
-    // is immediately forwarded without another D-Bus round-trip.
-    // The depth is decremented on the next main-loop iteration so the hook
-    // re-activates cleanly for future actions.
-    // Errors from proceedFn propagate to the caller — we must NOT swallow them.
+    // _safeProceed increments _bypassDepth and sets _bypassUntil so that any re-entrant
+    // or immediate follow-up intercept call triggered by proceedFn (e.g. GNOME session manager
+    // broadcasting logout back to the shell) is immediately forwarded without another prompt.
     _safeProceed(proceedFn) {
         this._bypassDepth++;
+        this._bypassUntil = Date.now() + 10000; // 10s cooldown window
         try {
             if (typeof proceedFn === 'function') {
                 proceedFn();
@@ -187,7 +186,8 @@ export default class TimeCheckAttendanceExtension extends Extension {
     }
 
     async _handleAction(action, proceedFn) {
-        if (this._bypassDepth > 0) {
+        if (this._bypassDepth > 0 || Date.now() < (this._bypassUntil || 0)) {
+            console.log(`[TimeCheck Extension] Bypassing ${action} (already proceeding)`);
             if (typeof proceedFn === 'function') proceedFn();
             return;
         }

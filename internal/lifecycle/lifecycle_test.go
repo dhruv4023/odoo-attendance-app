@@ -490,5 +490,3 @@ func TestLifecycle_RequestAction_ManagerStopped_ReturnsProceed(t *testing.T) {
 		t.Errorf("expected decision 'proceed' when manager stopped, got %s", decision)
 	}
 }
-
-

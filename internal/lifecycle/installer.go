@@ -1,8 +1,8 @@
 package lifecycle
 
 import (
-	_ "embed"
 	"bytes"
+	_ "embed"
 	"fmt"
 	"log"
 	"os"

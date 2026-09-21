@@ -9,19 +9,18 @@ let _systemActions = null;
 let _proto = null;
 let _enabled = false;
 let _bypassDepth = 0;
+let _bypassUntil = 0;
 
 // Saved property descriptors for exact restoration on disable()
 let _origProtoDescriptors = null;
 let _origOwnDescriptors = null;
 
-// _safeProceed increments _bypassDepth so that any re-entrant intercept
-// call triggered by proceedFn (e.g. GNOME calling back into activateLogout)
-// is immediately forwarded without another D-Bus round-trip.
-// The depth is decremented on the next main-loop iteration so the hook
-// re-activates cleanly for future actions.
-// Errors from proceedFn propagate to the caller — we must NOT swallow them.
+// _safeProceed increments _bypassDepth and sets _bypassUntil so that any re-entrant
+// or immediate follow-up intercept call triggered by proceedFn (e.g. GNOME session manager
+// broadcasting logout back to the shell) is immediately forwarded without another prompt.
 function _safeProceed(proceedFn) {
     _bypassDepth++;
+    _bypassUntil = Date.now() + 10000; // 10s cooldown window
     try {
         if (typeof proceedFn === 'function') {
             proceedFn();
@@ -35,7 +34,8 @@ function _safeProceed(proceedFn) {
 }
 
 function _handleAction(action, proceedFn) {
-    if (_bypassDepth > 0) {
+    if (_bypassDepth > 0 || Date.now() < _bypassUntil) {
+        log(`[TimeCheck Extension] Bypassing ${action} (already proceeding)`);
         if (typeof proceedFn === 'function') proceedFn();
         return;
     }

@@ -203,7 +203,6 @@ func (e *showWindowEmitter) Emit(name string, data ...interface{}) {
 	e.delegate.Emit(name, data...)
 }
 
-
 // Shutdown is called by Wails when app.Quit() is invoked.
 func (a *AppService) Shutdown() {
 	if a.lifecycle != nil {
@@ -310,17 +309,11 @@ func (a *AppService) SaveSettings(s schedule.Settings) error {
 		}
 	}
 
-
 	if a.lifecycle != nil {
 		a.lifecycle.ArmInhibitors()
 	}
 	return nil
 }
-
-
-
-
-
 
 // GetURL returns the configured attendance URL.
 func (a *AppService) GetURL() string {
@@ -340,12 +333,12 @@ func (a *AppService) GetTodayStatus() attendance.DailyStatus {
 	return a.attendance.GetStatus()
 }
 
-// ShowWindow shows and focuses the main application window in fullscreen.
+// ShowWindow shows and focuses the main application window maximised.
 func (a *AppService) ShowWindow() {
 	if a.mainWindow != nil {
+		a.mainWindow.UnFullscreen()
 		a.mainWindow.Show()
-		a.mainWindow.UnMinimise()
-		a.mainWindow.Fullscreen()
+		a.mainWindow.Maximise()
 		a.mainWindow.Focus()
 		a.mainWindow.EmitEvent("status-changed", a.attendance.GetStatus())
 	}
@@ -461,7 +454,6 @@ func (a *AppService) CheckOut() CheckResult {
 	}
 	return CheckResult{OK: true}
 }
-
 
 // LoginCheckIn is called from the login check-in reminder dialog.
 func (a *AppService) LoginCheckIn() CheckResult {

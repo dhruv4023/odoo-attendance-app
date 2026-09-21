@@ -198,4 +198,3 @@ func (m *Manager) ForceCheckOut() error {
 	})
 	return m.store.WriteJSON(statusFile, m.status)
 }
-
