@@ -82,9 +82,7 @@ func (e *windowEmitter) Emit(name string, data ...interface{}) {
 // AppService is the Wails v3 service bound to the frontend.
 // It implements the full API surface and wires all internal packages.
 type AppService struct {
-	checkinWin  *application.WebviewWindow
-	checkoutWin *application.WebviewWindow
-	settingsWin *application.WebviewWindow
+	mainWindow  *application.WebviewWindow
 	emitter     *windowEmitter
 	store       *storage.FileStore
 	settings    schedule.Settings
@@ -103,17 +101,10 @@ func NewAppService() *AppService {
 	}
 }
 
-// SetWindows configures references to the check-in, check-out, and settings windows.
-func (a *AppService) SetWindows(checkin, checkout, settings *application.WebviewWindow) {
-	a.checkinWin = checkin
-	a.checkoutWin = checkout
-	a.settingsWin = settings
-	a.emitter.SetWindows(checkin, checkout, settings)
-}
-
-// SetWindow gives the service a reference to a window (compatibility helper).
-func (a *AppService) SetWindow(w *application.WebviewWindow) {
-	a.SetWindows(w, nil, nil)
+// setWindow configures the reference to the single main window.
+func (a *AppService) setWindow(w *application.WebviewWindow) {
+	a.mainWindow = w
+	a.emitter.SetWindows(w)
 }
 
 // Startup initialises all background services. Called before app.Run().
@@ -349,77 +340,62 @@ func (a *AppService) GetTodayStatus() attendance.DailyStatus {
 	return a.attendance.GetStatus()
 }
 
-// ShowCheckInWindow displays the full-screen check-in window on login.
-func (a *AppService) ShowCheckInWindow() {
-	if a.checkinWin != nil {
-		a.checkinWin.Fullscreen()
-		a.checkinWin.SetAlwaysOnTop(true)
-		a.checkinWin.Show()
-		a.checkinWin.UnMinimise()
-		a.checkinWin.Restore()
-		a.checkinWin.Focus()
-		a.checkinWin.EmitEvent("checkin-requested")
-	}
-}
-
-// HideCheckInWindow hides the check-in window and exits fullscreen.
-func (a *AppService) HideCheckInWindow() {
-	if a.checkinWin != nil {
-		a.checkinWin.SetAlwaysOnTop(false)
-		a.checkinWin.UnFullscreen()
-		a.checkinWin.Hide()
-	}
-}
-
-// ShowCheckOutWindow displays the check-out dialog window.
-func (a *AppService) ShowCheckOutWindow(action string) {
-	if a.checkoutWin != nil {
-		a.checkoutWin.SetSize(420, 260)
-		a.checkoutWin.Center()
-		a.checkoutWin.SetAlwaysOnTop(true)
-		a.checkoutWin.Show()
-		a.checkoutWin.UnMinimise()
-		a.checkoutWin.Restore()
-		a.checkoutWin.Focus()
-		a.checkoutWin.EmitEvent("checkout-requested", map[string]string{"action": action})
-	}
-}
-
-// HideCheckOutWindow hides the check-out window.
-func (a *AppService) HideCheckOutWindow() {
-	if a.checkoutWin != nil {
-		a.checkoutWin.SetAlwaysOnTop(false)
-		a.checkoutWin.Hide()
-	}
-}
-
-// ShowSettingsWindow displays the settings and attendance dashboard window.
-func (a *AppService) ShowSettingsWindow() {
-	if a.settingsWin != nil {
-		a.settingsWin.SetSize(480, 680)
-		a.settingsWin.Show()
-		a.settingsWin.UnMinimise()
-		a.settingsWin.Restore()
-		a.settingsWin.Focus()
-		a.settingsWin.EmitEvent("status-changed", a.attendance.GetStatus())
-	}
-}
-
-// HideSettingsWindow hides the settings window.
-func (a *AppService) HideSettingsWindow() {
-	if a.settingsWin != nil {
-		a.settingsWin.Hide()
-	}
-}
-
-// ShowWindow shows and focuses the main/settings application window.
+// ShowWindow shows and focuses the main application window in fullscreen.
 func (a *AppService) ShowWindow() {
-	a.ShowSettingsWindow()
+	if a.mainWindow != nil {
+		a.mainWindow.Show()
+		a.mainWindow.UnMinimise()
+		a.mainWindow.Fullscreen()
+		a.mainWindow.Focus()
+		a.mainWindow.EmitEvent("status-changed", a.attendance.GetStatus())
+	}
 }
 
-// HideWindow hides the settings application window.
+// HideWindow hides the main application window.
 func (a *AppService) HideWindow() {
-	a.HideSettingsWindow()
+	if a.mainWindow != nil {
+		a.mainWindow.SetAlwaysOnTop(false)
+		a.mainWindow.Hide()
+	}
+}
+
+// ShowCheckInWindow displays the main window for check-in on login.
+func (a *AppService) ShowCheckInWindow() {
+	a.ShowWindow()
+	if a.mainWindow != nil {
+		a.mainWindow.EmitEvent("checkin-requested")
+	}
+}
+
+// HideCheckInWindow hides the window.
+func (a *AppService) HideCheckInWindow() {
+	a.HideWindow()
+}
+
+// ShowCheckOutWindow displays the checkout prompt in the main window.
+func (a *AppService) ShowCheckOutWindow(action string) {
+	a.ShowWindow()
+	if a.mainWindow != nil {
+		a.mainWindow.EmitEvent("checkout-requested", map[string]string{"action": action})
+	}
+}
+
+// HideCheckOutWindow hides the window.
+func (a *AppService) HideCheckOutWindow() {
+	a.HideWindow()
+}
+
+// ShowSettingsWindow displays the main window with settings view active.
+func (a *AppService) ShowSettingsWindow() {
+	a.ShowWindow()
+	if a.mainWindow != nil {
+		a.mainWindow.EmitEvent("open-settings")
+	}
+}
+
+// HideSettingsWindow hides the window.
+func (a *AppService) HideSettingsWindow() {
+	a.HideWindow()
 }
 
 // CheckIn records check-in and opens the configured URL.

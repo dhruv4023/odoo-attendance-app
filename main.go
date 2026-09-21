@@ -57,64 +57,24 @@ func main() {
 		},
 	})
 
-	// ── Window 1: Check-In Window (Full Screen / Large Modal on Login) ─────
-	checkinWin := app.Window.NewWithOptions(application.WebviewWindowOptions{
-		Title:            "TimeCheck - Check In",
-		Name:             "checkin",
-		Width:            900,
-		Height:           650,
-		MinWidth:         400,
-		MinHeight:        300,
-		DisableResize:    false,
+	// ── Single Main Window (Always Fullscreen) ──────────────────────────────
+	mainWin := app.Window.NewWithOptions(application.WebviewWindowOptions{
+		Title:            "TimeCheck",
+		Name:             "main",
+		StartState:       application.WindowStateFullscreen,
 		Hidden:           true,
-		URL:              "/?window=checkin",
+		HideOnEscape:     true,
+		URL:              "/",
 		BackgroundColour: application.NewRGBA(15, 23, 42, 255),
 	})
-	checkinWin.RegisterHook(events.Common.WindowClosing, func(e *application.WindowEvent) {
-		svc.LoginContinue()
-		checkinWin.Hide()
+	mainWin.RegisterHook(events.Common.WindowClosing, func(e *application.WindowEvent) {
+		svc.CancelIfCheckingOut()
+		mainWin.Hide()
 		e.Cancel()
 	})
 
-	// ── Window 2: Check-Out Window ──────────────────────────────────────────
-	checkoutWin := app.Window.NewWithOptions(application.WebviewWindowOptions{
-		Title:            "TimeCheck - Check Out",
-		Name:             "checkout",
-		Width:            420,
-		Height:           260,
-		MinWidth:         380,
-		MinHeight:        240,
-		DisableResize:    true,
-		Hidden:           true,
-		URL:              "/?window=checkout",
-		BackgroundColour: application.NewRGBA(15, 23, 42, 255),
-	})
-	checkoutWin.RegisterHook(events.Common.WindowClosing, func(e *application.WindowEvent) {
-		svc.ShutdownCancel()
-		checkoutWin.Hide()
-		e.Cancel()
-	})
-
-	// ── Window 3: Settings Window ───────────────────────────────────────────
-	settingsWin := app.Window.NewWithOptions(application.WebviewWindowOptions{
-		Title:            "TimeCheck - Settings",
-		Name:             "settings",
-		Width:            480,
-		Height:           680,
-		MinWidth:         380,
-		MinHeight:        400,
-		DisableResize:    false,
-		Hidden:           true,
-		URL:              "/?window=settings",
-		BackgroundColour: application.NewRGBA(15, 23, 42, 255),
-	})
-	settingsWin.RegisterHook(events.Common.WindowClosing, func(e *application.WindowEvent) {
-		settingsWin.Hide()
-		e.Cancel()
-	})
-
-	// Give the service references to all 3 windows.
-	svc.SetWindows(checkinWin, checkoutWin, settingsWin)
+	// Give the service reference to the single window.
+	svc.setWindow(mainWin)
 
 	// ── System Tray ─────────────────────────────────────────────────────────
 	tray := app.SystemTray.New()
@@ -124,8 +84,8 @@ func main() {
 	menu := app.NewMenu()
 	menu.Add("TimeCheck").SetEnabled(false)
 	menu.AddSeparator()
-	menu.Add("Settings").OnClick(func(ctx *application.Context) {
-		svc.ShowSettingsWindow()
+	menu.Add("Open TimeCheck").OnClick(func(ctx *application.Context) {
+		svc.ShowWindow()
 	})
 	menu.AddSeparator()
 	menu.Add("Quit").OnClick(func(ctx *application.Context) {

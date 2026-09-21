@@ -69,7 +69,14 @@ func (m *Manager) load() error {
 	today := m.clock.Now().Format("2006-01-02")
 	if s.Date != today {
 		// New day — start fresh.
-		s = DailyStatus{Date: today}
+		s = DailyStatus{Date: today, CheckedIn: false, Logs: nil}
+	} else {
+		// Ensure CheckedIn flag matches the last recorded log
+		if len(s.Logs) > 0 {
+			s.CheckedIn = s.Logs[len(s.Logs)-1].Type == "check_in"
+		} else {
+			s.CheckedIn = false
+		}
 	}
 	m.status = s
 	return nil
@@ -81,19 +88,30 @@ func (m *Manager) ResetIfNewDay() error {
 	if m.status.Date == today {
 		return nil
 	}
-	m.status = DailyStatus{Date: today}
+	m.status = DailyStatus{Date: today, CheckedIn: false, Logs: nil}
 	return m.store.WriteJSON(statusFile, m.status)
 }
 
 // GetStatus returns a copy of the current daily status.
 func (m *Manager) GetStatus() DailyStatus {
+	// Keep CheckedIn synced with the last log entry
+	if len(m.status.Logs) > 0 {
+		m.status.CheckedIn = m.status.Logs[len(m.status.Logs)-1].Type == "check_in"
+	} else {
+		m.status.CheckedIn = false
+	}
 	return m.status
 }
 
-// IsCheckedIn returns whether the user has checked in today.
-func (m *Manager) IsCheckedIn() bool { return m.status.CheckedIn }
+// IsCheckedIn returns whether the user is currently checked in.
+func (m *Manager) IsCheckedIn() bool {
+	if len(m.status.Logs) == 0 {
+		return false
+	}
+	return m.status.Logs[len(m.status.Logs)-1].Type == "check_in"
+}
 
-// IsCheckedOut returns whether the user has checked out today.
+// IsCheckedOut returns whether the user is currently checked out.
 func (m *Manager) IsCheckedOut() bool {
 	if len(m.status.Logs) == 0 {
 		return false
@@ -101,12 +119,12 @@ func (m *Manager) IsCheckedOut() bool {
 	return m.status.Logs[len(m.status.Logs)-1].Type == "check_out"
 }
 
-// CheckIn records the check-in time. Returns ErrAlreadyCheckedIn if already checked in.
+// CheckIn records the check-in time.
 func (m *Manager) CheckIn() error {
 	if err := m.ResetIfNewDay(); err != nil {
 		return err
 	}
-	if m.status.CheckedIn {
+	if m.IsCheckedIn() {
 		return ErrAlreadyCheckedIn
 	}
 	now := m.clock.Now()
@@ -118,18 +136,19 @@ func (m *Manager) CheckIn() error {
 	return m.store.WriteJSON(statusFile, m.status)
 }
 
-// CheckOut records the check-out time. Returns an error if not checked in or already checked out.
+// CheckOut records the check-out time.
 func (m *Manager) CheckOut() error {
 	if err := m.ResetIfNewDay(); err != nil {
 		return err
 	}
-	if !m.status.CheckedIn {
-		return ErrNotCheckedIn
-	}
 	if m.IsCheckedOut() {
 		return ErrAlreadyCheckedOut
 	}
+	if !m.IsCheckedIn() {
+		return ErrNotCheckedIn
+	}
 	now := m.clock.Now()
+	m.status.CheckedIn = false
 	m.status.Logs = append(m.status.Logs, LogEntry{
 		Type:      "check_out",
 		Timestamp: now,
@@ -161,19 +180,18 @@ func (m *Manager) ShouldPromptDialog(threshold time.Duration) bool {
 }
 
 // ForceCheckOut records a check-out regardless of current state (used from shutdown dialog).
-// It will set CheckedIn if not set, then record the check-out.
 func (m *Manager) ForceCheckOut() error {
 	if err := m.ResetIfNewDay(); err != nil {
 		return err
 	}
 	now := m.clock.Now()
-	if !m.status.CheckedIn {
-		m.status.CheckedIn = true
+	if !m.IsCheckedIn() {
 		m.status.Logs = append(m.status.Logs, LogEntry{
 			Type:      "check_in",
 			Timestamp: now,
 		})
 	}
+	m.status.CheckedIn = false
 	m.status.Logs = append(m.status.Logs, LogEntry{
 		Type:      "check_out",
 		Timestamp: now,
