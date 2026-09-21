@@ -68,11 +68,9 @@ runs:
         if [ -n "${{ inputs.extra-tags }}" ]; then
           EXTRA_TAGS_ARG="EXTRA_TAGS=${{ inputs.extra-tags }}"
         fi
-        task linux:build $EXTRA_TAGS_ARG
-        if [ -f "bin/timecheck" ]; then
-          cp bin/timecheck "bin/${{ inputs.build-name }}"
-          chmod +x "bin/${{ inputs.build-name }}"
-        fi
+        task linux:build $EXTRA_TAGS_ARG OUTPUT="bin/${{ inputs.build-name }}"
+        rm -f bin/timecheck
+        chmod +x "bin/${{ inputs.build-name }}"
 
     - name: Run Tests
       shell: bash
@@ -83,12 +81,12 @@ runs:
       uses: actions/upload-artifact@v4
       with:
         name: ${{ inputs.build-name }}
-        path: bin/
+        path: bin/${{ inputs.build-name }}
 
     - name: Create Release
       if: inputs.package == 'true' && startsWith(github.ref, 'refs/tags/')
       uses: softprops/action-gh-release@v2
       with:
-        files: bin/*
+        files: bin/${{ inputs.build-name }}
       env:
         GITHUB_TOKEN: ${{ inputs.token }}
