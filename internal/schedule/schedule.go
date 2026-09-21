@@ -42,10 +42,12 @@ type Schedule struct {
 
 // Settings is the top-level persisted application configuration.
 type Settings struct {
-	Schedule            Schedule `json:"schedule"`
-	URL                 string   `json:"url"`
-	Autostart           bool     `json:"autostart"`
-	LogThresholdMinutes int      `json:"log_threshold_minutes"`
+	Schedule                    Schedule `json:"schedule"`
+	URL                         string   `json:"url"`
+	Autostart                   bool     `json:"autostart"`
+	LogThresholdMinutes         int      `json:"log_threshold_minutes"`
+	CheckOutWindowBeforeMinutes int      `json:"check_out_window_before_minutes"`
+	CheckOutWindowAfterMinutes  int      `json:"check_out_window_after_minutes"`
 }
 
 // GetLogThreshold returns the threshold duration without a log before showing reminder dialogs.
@@ -56,7 +58,23 @@ func (s Settings) GetLogThreshold() time.Duration {
 	return time.Duration(s.LogThresholdMinutes) * time.Minute
 }
 
-// DefaultSettings returns sensible defaults (Mon–Fri 10:00–19:00 with autostart enabled).
+// GetCheckOutWindowBefore returns the duration before check-out time when check-out reminders should start.
+func (s Settings) GetCheckOutWindowBefore() time.Duration {
+	if s.CheckOutWindowBeforeMinutes <= 0 {
+		return 30 * time.Minute
+	}
+	return time.Duration(s.CheckOutWindowBeforeMinutes) * time.Minute
+}
+
+// GetCheckOutWindowAfter returns the duration after check-out time when check-out reminders should end.
+func (s Settings) GetCheckOutWindowAfter() time.Duration {
+	if s.CheckOutWindowAfterMinutes <= 0 {
+		return 30 * time.Minute
+	}
+	return time.Duration(s.CheckOutWindowAfterMinutes) * time.Minute
+}
+
+// DefaultSettings returns sensible defaults (Mon–Fri 10:00–19:00 with autostart enabled and ±30 min checkout window).
 func DefaultSettings() Settings {
 	day := DaySchedule{Enabled: true, CheckIn: "10:00", CheckOut: "19:00"}
 	return Settings{
@@ -69,9 +87,11 @@ func DefaultSettings() Settings {
 			Saturday:  DaySchedule{Enabled: false},
 			Sunday:    DaySchedule{Enabled: false},
 		},
-		URL:                 "https://example.com/attendance",
-		Autostart:           false,
-		LogThresholdMinutes: 3,
+		URL:                         "https://example.com/attendance",
+		Autostart:                   false,
+		LogThresholdMinutes:         3,
+		CheckOutWindowBeforeMinutes: 0,
+		CheckOutWindowAfterMinutes:  30,
 	}
 }
 
@@ -263,8 +283,35 @@ func (s Schedule) ShouldPromptLoginCheckIn(t time.Time) bool {
 	return day.IsCheckInWindow(t)
 }
 
+// IsCheckOutWindow returns true if t is within the configured check-out window for this day schedule.
+// The check-out window starts 'before' duration before check-out time and ends 'after' duration after check-out time.
+func (d DaySchedule) IsCheckOutWindow(t time.Time, before, after time.Duration) bool {
+	if !d.Enabled {
+		return false
+	}
+	oh, om, err := parseTime(d.CheckOut)
+	if err != nil {
+		return false
+	}
+	checkOutTime := toTimeOnDay(t, oh, om)
+	windowStart := checkOutTime.Add(-before)
+	windowEnd := checkOutTime.Add(after)
+
+	return !t.Before(windowStart) && !t.After(windowEnd)
+}
+
+// ShouldPromptCheckOut returns true if the current time t is within the check-out reminder window for today's schedule.
+func (s Schedule) ShouldPromptCheckOut(t time.Time, before, after time.Duration) bool {
+	day, enabled := s.ForToday(t)
+	if !enabled {
+		return false
+	}
+	return day.IsCheckOutWindow(t, before, after)
+}
+
 // ParseHHMM parses an HH:MM string and returns the hour and minute.
 // Exported for use in other packages.
 func ParseHHMM(s string) (hour, minute int, err error) {
 	return parseTime(s)
 }
+

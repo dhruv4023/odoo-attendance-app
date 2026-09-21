@@ -26,6 +26,8 @@ export interface Settings {
   url?: string;
   autostart: boolean;
   log_threshold_minutes?: number;
+  check_out_window_before_minutes?: number;
+  check_out_window_after_minutes?: number;
 }
 
 

@@ -169,6 +169,13 @@ func (a *AppService) Startup(app *application.App) error {
 	})
 	lm.SetPromptChecker(func() bool {
 		threshold := a.settings.GetLogThreshold()
+		// Check if current time is within today's configured check-out window.
+		now := time.Now()
+		before := a.settings.GetCheckOutWindowBefore()
+		after := a.settings.GetCheckOutWindowAfter()
+		if !a.settings.Schedule.ShouldPromptCheckOut(now, before, after) {
+			return false
+		}
 		return a.attendance.ShouldPromptDialog(threshold)
 	})
 	a.lifecycle = lm
@@ -271,6 +278,12 @@ func (a *AppService) loadSettings() {
 	if s.LogThresholdMinutes <= 0 {
 		s.LogThresholdMinutes = 3
 	}
+	if s.CheckOutWindowBeforeMinutes <= 0 {
+		s.CheckOutWindowBeforeMinutes = 0
+	}
+	if s.CheckOutWindowAfterMinutes <= 0 {
+		s.CheckOutWindowAfterMinutes = 30
+	}
 	a.settings = s
 }
 
@@ -315,6 +328,12 @@ func (a *AppService) SaveSettings(s schedule.Settings) error {
 	}
 	if s.LogThresholdMinutes <= 0 {
 		s.LogThresholdMinutes = 3
+	}
+	if s.CheckOutWindowBeforeMinutes <= 0 {
+		s.CheckOutWindowBeforeMinutes = 0
+	}
+	if s.CheckOutWindowAfterMinutes <= 0 {
+		s.CheckOutWindowAfterMinutes = 30
 	}
 	if err := a.store.WriteJSON(settingsFile, s); err != nil {
 		return err

@@ -42,6 +42,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onBack }) => {
   const [url, setUrl] = useState('');
   const [autostart, setAutostart] = useState(false);
   const [logThresholdMinutes, setLogThresholdMinutes] = useState(3);
+  const [checkOutWindowBeforeMinutes, setCheckOutWindowBeforeMinutes] = useState(0);
+  const [checkOutWindowAfterMinutes, setCheckOutWindowAfterMinutes] = useState(30);
   const [appInfo, setAppInfo] = useState<AppInfo | null>(null);
 
   const [saving, setSaving] = useState(false);
@@ -64,6 +66,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onBack }) => {
         if (setts?.log_threshold_minutes !== undefined) {
           setLogThresholdMinutes(setts.log_threshold_minutes);
         }
+        if (setts?.check_out_window_before_minutes !== undefined) {
+          setCheckOutWindowBeforeMinutes(setts.check_out_window_before_minutes);
+        }
+        if (setts?.check_out_window_after_minutes !== undefined) {
+          setCheckOutWindowAfterMinutes(setts.check_out_window_after_minutes);
+        }
 
         if (typeof AppService.GetAppInfo === 'function') {
           const info = await AppService.GetAppInfo();
@@ -75,7 +83,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onBack }) => {
     };
     load();
   }, []);
-
 
   const showMsg = (text: string, isError = false) => {
     setMessage({ text, isError });
@@ -143,6 +150,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onBack }) => {
       newErrors.threshold = 'Threshold must be at least 1 minute';
     }
 
+    if (isNaN(checkOutWindowBeforeMinutes) || checkOutWindowBeforeMinutes < 0) {
+      newErrors.window = 'Before check-out window must be 0 or greater';
+    }
+
+    if (isNaN(checkOutWindowAfterMinutes) || checkOutWindowAfterMinutes < 0) {
+      newErrors.window = 'After check-out window must be 0 or greater';
+    }
+
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
       return;
@@ -155,6 +170,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onBack }) => {
         url: url.trim(),
         autostart,
         log_threshold_minutes: Number(logThresholdMinutes) || 3,
+        check_out_window_before_minutes: Number(checkOutWindowBeforeMinutes) ?? 30,
+        check_out_window_after_minutes: Number(checkOutWindowAfterMinutes) ?? 30,
       });
       showMsg('Settings saved successfully!');
     } catch (e: any) {
@@ -166,28 +183,151 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onBack }) => {
 
   return (
     <div className="flex flex-col h-full overflow-y-auto px-4 pb-6 gap-4 animate-slide-up">
-      {/* Attendance Portal URL Card */}
+      {/* Header with Back Button */}
+      <div className="flex items-center justify-between pt-3 pb-1 border-b border-slate-800/80">
+        <button
+          type="button"
+          onClick={onBack}
+          className="inline-flex items-center gap-1.5 py-1.5 px-2.5 rounded-xl text-xs font-semibold bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 border border-slate-700/60 transition-all active:scale-95 cursor-pointer shadow-sm"
+        >
+          <ChevronLeft className="w-3.5 h-3.5 text-slate-400" />
+          <span>Back</span>
+        </button>
+        <div className="text-xs font-semibold tracking-widest text-slate-400 uppercase">
+          Settings
+        </div>
+        <div className="w-14" />
+      </div>
+
+      {/* Weekly Work Schedule Card */}
+      <div className="rounded-2xl bg-slate-900/80 border border-slate-800/80 p-4 shadow-lg flex flex-col gap-3">
+        <div className="flex items-center justify-between">
+          <h2 className="text-xs font-bold tracking-wider uppercase text-slate-400 flex items-center gap-1.5">
+            <Calendar className="w-3.5 h-3.5 text-sky-400" />
+            Work Schedule
+          </h2>
+          <span className="text-[10px] text-slate-500 font-medium">Daily In & Out Times</span>
+        </div>
+
+        <div className="flex flex-col gap-2">
+          {DAYS.map(day => {
+            const d = schedule[day];
+            return (
+              <div
+                key={day}
+                className={`flex items-center justify-between p-2.5 rounded-xl border transition-colors ${
+                  d.enabled ? 'bg-slate-950/60 border-slate-800/80' : 'bg-slate-950/20 border-slate-800/30 opacity-60'
+                }`}
+              >
+                <label className="flex items-center gap-2 cursor-pointer select-none min-w-[90px]">
+                  <input
+                    type="checkbox"
+                    checked={d.enabled}
+                    onChange={() => handleDayToggle(day)}
+                    className="sr-only"
+                  />
+                  <div
+                    className={`w-6 h-3.5 rounded-full transition-colors relative ${
+                      d.enabled ? 'bg-sky-500' : 'bg-slate-700'
+                    }`}
+                  >
+                    <div
+                      className={`w-2.5 h-2.5 rounded-full bg-white transition-transform absolute top-0.5 left-0.5 ${
+                        d.enabled ? 'translate-x-2.5' : 'translate-x-0'
+                      }`}
+                    />
+                  </div>
+                  <span className="text-xs font-medium text-slate-200">{DAY_LABELS[day]}</span>
+                </label>
+
+                {d.enabled ? (
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1">
+                      <span className="text-[10px] text-slate-500 uppercase">In:</span>
+                      <input
+                        type="time"
+                        value={d.check_in}
+                        onChange={e => handleTimeChange(day, 'check_in', e.target.value)}
+                        className="bg-slate-900 border border-slate-700/80 text-slate-200 text-xs rounded-lg px-1.5 py-1 font-mono outline-none focus:border-sky-400"
+                      />
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <span className="text-[10px] text-slate-500 uppercase">Out:</span>
+                      <input
+                        type="time"
+                        value={d.check_out}
+                        onChange={e => handleTimeChange(day, 'check_out', e.target.value)}
+                        className="bg-slate-900 border border-slate-700/80 text-slate-200 text-xs rounded-lg px-1.5 py-1 font-mono outline-none focus:border-sky-400"
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <span className="text-xs text-slate-600 italic">Day Off</span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+        {errors.schedule && <p className="text-[11px] text-rose-400">{errors.schedule}</p>}
+      </div>
+
+      {/* Check-Out Reminder Popup Window Card */}
       <div className="rounded-2xl bg-slate-900/80 border border-slate-800/80 p-4 shadow-lg flex flex-col gap-3">
         <h2 className="text-xs font-bold tracking-wider uppercase text-slate-400 flex items-center gap-1.5">
-          <Link className="w-3.5 h-3.5 text-sky-400" />
-          Attendance Portal URL
+          <Clock className="w-3.5 h-3.5 text-amber-400" />
+          Check-Out Reminder Popup Window
         </h2>
 
-        <div>
-          <label className="block text-xs font-medium text-slate-400 mb-1">Portal URL</label>
-          <input
-            type="url"
-            value={url}
-            onChange={e => setUrl(e.target.value)}
-            placeholder="https://example.com/attendance"
-            className={`w-full bg-slate-950 border text-slate-200 text-xs rounded-xl px-3 py-2 outline-none transition-colors ${errors.url ? 'border-rose-500 focus:border-rose-400' : 'border-slate-700/80 focus:border-sky-400'
-              }`}
-          />
-          <p className="text-[11px] text-slate-500 mt-1">
-            The web portal where check-in and check-out actions are completed.
-          </p>
-          {errors.url && <p className="text-[11px] text-rose-400 mt-1">{errors.url}</p>}
+        <p className="text-[11px] text-slate-400">
+          Configure the active time range around your scheduled check-out time when the check-out reminder popup will be triggered during shutdown or logout.
+        </p>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-xs font-medium text-slate-400 mb-1">
+              Before Check-Out
+            </label>
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                min={0}
+                max={360}
+                value={checkOutWindowBeforeMinutes}
+                onChange={e => setCheckOutWindowBeforeMinutes(Math.max(0, parseInt(e.target.value, 10) || 0))}
+                className="w-full bg-slate-950 border border-slate-700/80 text-slate-200 text-xs rounded-xl px-3 py-2 outline-none focus:border-sky-400 font-mono"
+              />
+              <span className="text-xs text-slate-400">min</span>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-slate-400 mb-1">
+              After Check-Out
+            </label>
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                min={0}
+                max={360}
+                value={checkOutWindowAfterMinutes}
+                onChange={e => setCheckOutWindowAfterMinutes(Math.max(0, parseInt(e.target.value, 10) || 0))}
+                className="w-full bg-slate-950 border border-slate-700/80 text-slate-200 text-xs rounded-xl px-3 py-2 outline-none focus:border-sky-400 font-mono"
+              />
+              <span className="text-xs text-slate-400">min</span>
+            </div>
+          </div>
         </div>
+
+        {/* Dynamic Window Explanation Box */}
+        <div className="bg-slate-950/60 border border-slate-800/80 rounded-xl p-2.5 text-[11px] text-slate-400 flex items-start gap-2">
+          <div className="w-1.5 h-1.5 rounded-full bg-amber-400 mt-1.5 shrink-0" />
+          <span>
+            {checkOutWindowBeforeMinutes === 0 && checkOutWindowAfterMinutes === 0
+              ? 'Reminder popup will trigger only exactly at check-out time.'
+              : `Popup will remind from ${checkOutWindowBeforeMinutes} min before to ${checkOutWindowAfterMinutes} min after your scheduled check-out time.`}
+          </span>
+        </div>
+        {errors.window && <p className="text-[11px] text-rose-400">{errors.window}</p>}
       </div>
 
       {/* Reminder Inactivity Threshold Card */}
@@ -219,6 +359,29 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onBack }) => {
         </div>
       </div>
 
+      {/* Attendance Portal URL Card */}
+      <div className="rounded-2xl bg-slate-900/80 border border-slate-800/80 p-4 shadow-lg flex flex-col gap-3">
+        <h2 className="text-xs font-bold tracking-wider uppercase text-slate-400 flex items-center gap-1.5">
+          <Link className="w-3.5 h-3.5 text-sky-400" />
+          Attendance Portal URL
+        </h2>
+
+        <div>
+          <label className="block text-xs font-medium text-slate-400 mb-1">Portal URL</label>
+          <input
+            type="url"
+            value={url}
+            onChange={e => setUrl(e.target.value)}
+            placeholder="https://example.com/attendance"
+            className={`w-full bg-slate-950 border text-slate-200 text-xs rounded-xl px-3 py-2 outline-none transition-colors ${errors.url ? 'border-rose-500 focus:border-rose-400' : 'border-slate-700/80 focus:border-sky-400'
+              }`}
+          />
+          <p className="text-[11px] text-slate-500 mt-1">
+            The web portal where check-in and check-out actions are completed.
+          </p>
+          {errors.url && <p className="text-[11px] text-rose-400 mt-1">{errors.url}</p>}
+        </div>
+      </div>
 
       {/* Application Settings Card */}
       <div className="rounded-2xl bg-slate-900/80 border border-slate-800/80 p-4 shadow-lg">

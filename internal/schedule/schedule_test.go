@@ -287,3 +287,85 @@ func TestShouldPromptLoginCheckIn(t *testing.T) {
 		t.Errorf("expected ShouldPromptLoginCheckIn=false on disabled Sunday")
 	}
 }
+
+func TestIsCheckOutWindow(t *testing.T) {
+	day := schedule.DaySchedule{Enabled: true, CheckIn: "10:00", CheckOut: "18:30"}
+	before := 30 * time.Minute
+	after := 45 * time.Minute
+
+	// Window is 18:00 to 19:15
+	tooEarly := timeAt(2026, 9, 14, 17, 59)
+	if day.IsCheckOutWindow(tooEarly, before, after) {
+		t.Errorf("17:59 should NOT be in check-out window")
+	}
+
+	atStart := timeAt(2026, 9, 14, 18, 0)
+	if !day.IsCheckOutWindow(atStart, before, after) {
+		t.Errorf("18:00 should be in check-out window")
+	}
+
+	atCheckOut := timeAt(2026, 9, 14, 18, 30)
+	if !day.IsCheckOutWindow(atCheckOut, before, after) {
+		t.Errorf("18:30 should be in check-out window")
+	}
+
+	atEnd := timeAt(2026, 9, 14, 19, 15)
+	if !day.IsCheckOutWindow(atEnd, before, after) {
+		t.Errorf("19:15 should be in check-out window")
+	}
+
+	tooLate := timeAt(2026, 9, 14, 19, 16)
+	if day.IsCheckOutWindow(tooLate, before, after) {
+		t.Errorf("19:16 should NOT be in check-out window")
+	}
+
+	disabledDay := schedule.DaySchedule{Enabled: false, CheckIn: "10:00", CheckOut: "18:30"}
+	if disabledDay.IsCheckOutWindow(atCheckOut, before, after) {
+		t.Errorf("disabled day should return false")
+	}
+}
+
+func TestShouldPromptCheckOut(t *testing.T) {
+	s := makeSchedule(time.Monday) // Monday 09:30 - 18:30
+	before := 30 * time.Minute
+	after := 30 * time.Minute
+
+	// Monday 18:15 — within window 18:00 to 19:00
+	mondayInWindow := timeAt(2026, 9, 14, 18, 15)
+	if !s.ShouldPromptCheckOut(mondayInWindow, before, after) {
+		t.Errorf("expected ShouldPromptCheckOut=true on Monday at 18:15")
+	}
+
+	// Monday 14:00 — way too early
+	mondayTooEarly := timeAt(2026, 9, 14, 14, 0)
+	if s.ShouldPromptCheckOut(mondayTooEarly, before, after) {
+		t.Errorf("expected ShouldPromptCheckOut=false on Monday at 14:00")
+	}
+
+	// Sunday — disabled
+	sunday := timeAt(2026, 9, 13, 18, 30)
+	if s.ShouldPromptCheckOut(sunday, before, after) {
+		t.Errorf("expected ShouldPromptCheckOut=false on disabled Sunday")
+	}
+}
+
+func TestSettings_CheckOutWindowDefaults(t *testing.T) {
+	s := schedule.DefaultSettings()
+	if s.GetCheckOutWindowBefore() != 30*time.Minute {
+		t.Errorf("expected default before window to be 30 min, got %v", s.GetCheckOutWindowBefore())
+	}
+	if s.GetCheckOutWindowAfter() != 30*time.Minute {
+		t.Errorf("expected default after window to be 30 min, got %v", s.GetCheckOutWindowAfter())
+	}
+
+	custom := schedule.Settings{
+		CheckOutWindowBeforeMinutes: 45,
+		CheckOutWindowAfterMinutes:  15,
+	}
+	if custom.GetCheckOutWindowBefore() != 45*time.Minute {
+		t.Errorf("expected custom before window to be 45 min, got %v", custom.GetCheckOutWindowBefore())
+	}
+	if custom.GetCheckOutWindowAfter() != 15*time.Minute {
+		t.Errorf("expected custom after window to be 15 min, got %v", custom.GetCheckOutWindowAfter())
+	}
+}
