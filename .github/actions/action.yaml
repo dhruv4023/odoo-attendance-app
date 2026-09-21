@@ -17,6 +17,10 @@ inputs:
     description: "Platform to build for"
     required: false
     default: "linux/amd64"
+  extra-tags:
+    description: "Extra build tags (e.g. gtk3)"
+    required: false
+    default: ""
   go-version:
     description: "Version of Go to use"
     required: false
@@ -60,7 +64,11 @@ runs:
     - name: Build Application with Wails v3
       shell: bash
       run: |
-        task linux:build
+        EXTRA_TAGS_ARG=""
+        if [ -n "${{ inputs.extra-tags }}" ]; then
+          EXTRA_TAGS_ARG="EXTRA_TAGS=${{ inputs.extra-tags }}"
+        fi
+        task linux:build $EXTRA_TAGS_ARG
         if [ -f "bin/timecheck" ]; then
           cp bin/timecheck "bin/${{ inputs.build-name }}"
           chmod +x "bin/${{ inputs.build-name }}"

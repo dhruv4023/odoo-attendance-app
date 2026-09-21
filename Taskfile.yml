@@ -13,16 +13,31 @@ includes:
 
 tasks:
   build:
-    summary: Builds the application for Linux
+    summary: "Builds the application for Linux (default: GTK4 / Ubuntu 24.04+)"
     cmds:
       - task: "linux:build"
+
+  'build:ubuntu-24':
+    summary: Builds the application for Ubuntu 24.04+ (GTK4)
+    cmds:
+      - task: "linux:build"
+        vars:
+          OUTPUT: "{{.BIN_DIR}}/timecheck-24"
+
+  'build:ubuntu-22':
+    summary: Builds the application for Ubuntu 22.04 / Debian 12 (GTK3)
+    cmds:
+      - task: "linux:build"
+        vars:
+          EXTRA_TAGS: "gtk3"
+          OUTPUT: "{{.BIN_DIR}}/timecheck-22"
 
   package:
     summary: Packages a production build of the application for Linux
     cmds:
       - task: "linux:package"
 
-  package:deb:
+  'package:deb':
     summary: Packages a .deb Debian/Ubuntu package for Linux
     cmds:
       - task: "linux:create:deb"
