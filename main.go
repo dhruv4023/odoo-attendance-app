@@ -19,10 +19,21 @@ var assets embed.FS
 var appIcon []byte
 
 func init() {
-	// WebKitGTK sandboxing (bubblewrap/bwrap) fails on Linux distros (e.g. Ubuntu 24.04+)
-	// where unprivileged user namespaces are restricted by AppArmor, causing:
-	// "bwrap: setting up uid map: Permission denied" and SIGTRAP crash (exit status 2).
-	// Setting WEBKIT_DISABLE_SANDBOX_THIS_IS_DANGEROUS=1 ensures reliable execution.
+	// Deployment limitation: WebKitGTK's bubblewrap (bwrap) sandbox cannot run on systems
+	// where the kernel AppArmor policy restricts unprivileged user namespaces
+	// (kernel.apparmor_restrict_unprivileged_userns = 1), which is the default on Ubuntu 24.04+.
+	// Attempting to use bwrap on these systems fails with:
+	//   "bwrap: setting up uid map: Permission denied"
+	// followed by a SIGTRAP crash (exit status 2).
+	//
+	// This cannot be fixed in user-space without either:
+	//   (a) a privileged helper (suid bwrap), or
+	//   (b) relaxing the kernel AppArmor policy (sysctl kernel.apparmor_restrict_unprivileged_userns=0).
+	//
+	// Neither option is appropriate for this application, so the WebKit sandbox is disabled.
+	// This is an explicit, acknowledged deployment limitation, not an oversight.
+	// The application only renders its own bundled assets and does not load untrusted web content,
+	// which substantially reduces the practical risk of running without the renderer sandbox.
 	if _, ok := os.LookupEnv("WEBKIT_DISABLE_SANDBOX_THIS_IS_DANGEROUS"); !ok {
 		os.Setenv("WEBKIT_DISABLE_SANDBOX_THIS_IS_DANGEROUS", "1")
 	}
@@ -34,11 +45,18 @@ func main() {
 
 	// Single-instance lock via Unix domain socket.
 	lockPath := singleInstanceLockPath()
-	if err := acquireSingleInstance(lockPath, svc.ShowSettingsWindow); err != nil {
+	ln, err := acquireSingleInstance(lockPath, svc.ShowSettingsWindow)
+	if err != nil {
 		// Another instance is running — signal it to come to the foreground.
 		signalExistingInstance(lockPath)
 		os.Exit(0)
 	}
+	defer func() {
+		if ln != nil {
+			ln.Close()
+		}
+		os.Remove(lockPath)
+	}()
 
 	app := application.New(application.Options{
 		Name:        "TimeCheck",
@@ -84,7 +102,7 @@ func main() {
 	menu := app.NewMenu()
 	menu.Add("TimeCheck").SetEnabled(false)
 	menu.AddSeparator()
-	menu.Add("Open TimeCheck").OnClick(func(ctx *application.Context) {
+	menu.Add("Open App").OnClick(func(ctx *application.Context) {
 		svc.ShowWindow()
 	})
 	menu.AddSeparator()
@@ -111,24 +129,58 @@ func singleInstanceLockPath() string {
 	if runDir != "" {
 		return filepath.Join(runDir, "timecheck.sock")
 	}
-	return filepath.Join(os.TempDir(), fmt.Sprintf("timecheck-%d.sock", os.Getuid()))
+	// Fallback to a user-private directory in /tmp with mode 0700 to prevent symlink attacks
+	tmpUserDir := filepath.Join(os.TempDir(), fmt.Sprintf("timecheck-runtime-%d", os.Getuid()))
+	_ = os.MkdirAll(tmpUserDir, 0700)
+	_ = os.Chmod(tmpUserDir, 0700)
+	return filepath.Join(tmpUserDir, "timecheck.sock")
 }
 
-// acquireSingleInstance tries to listen on the lock socket.
-// Returns nil if this is the first instance, error otherwise.
-func acquireSingleInstance(sockPath string, onRaise func()) error {
-	if _, err := os.Stat(sockPath); err == nil {
-		conn, err := net.Dial("unix", sockPath)
-		if err == nil {
-			conn.Close()
-			return fmt.Errorf("another instance is running")
-		}
-		os.Remove(sockPath)
-	}
+// acquireSingleInstance attempts to listen on the lock socket atomically.
+// Returns a net.Listener if successful (first instance), or an error if another instance is active.
+func acquireSingleInstance(sockPath string, onRaise func()) (net.Listener, error) {
 	ln, err := net.Listen("unix", sockPath)
-	if err != nil {
-		return fmt.Errorf("listen: %w", err)
+	if err == nil {
+		_ = os.Chmod(sockPath, 0600)
+		startSingleInstanceServer(ln, onRaise)
+		return ln, nil
 	}
+
+	// If listen failed, verify if another instance is actually alive
+	conn, dialErr := net.Dial("unix", sockPath)
+	if dialErr == nil {
+		conn.Close()
+		return nil, fmt.Errorf("another instance is running")
+	}
+
+	// If dial failed (e.g. connection refused), the socket is stale.
+	// Note: Lstat + Remove is not fully atomic, but the socket is in a user-private
+	// runtime directory (mode 0700), which substantially reduces symlink-race risk.
+	if fi, statErr := os.Lstat(sockPath); statErr == nil {
+		if fi.Mode().Type() != os.ModeSocket {
+			return nil, fmt.Errorf(
+				"unsafe existing lock file at %s: mode %v",
+				sockPath,
+				fi.Mode(),
+			)
+		}
+
+		if err := os.Remove(sockPath); err != nil {
+			return nil, fmt.Errorf("remove stale socket: %w", err)
+		}
+	}
+
+	// Try listening again after removing stale socket
+	ln, err = net.Listen("unix", sockPath)
+	if err != nil {
+		return nil, fmt.Errorf("listen: %w", err)
+	}
+	_ = os.Chmod(sockPath, 0600)
+	startSingleInstanceServer(ln, onRaise)
+	return ln, nil
+}
+
+func startSingleInstanceServer(ln net.Listener, onRaise func()) {
 	go func() {
 		for {
 			conn, err := ln.Accept()
@@ -146,7 +198,6 @@ func acquireSingleInstance(sockPath string, onRaise func()) error {
 			}
 		}
 	}()
-	return nil
 }
 
 // signalExistingInstance sends a "raise" command to the running instance.

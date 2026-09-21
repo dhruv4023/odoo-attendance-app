@@ -9,90 +9,191 @@ const DBUS_INTERFACE_NAME = 'com.odoo.TimeCheck';
 
 export default class TimeCheckAttendanceExtension extends Extension {
     enable() {
+        if (this._enabled) {
+            console.log('[TimeCheck Extension] Already enabled, skipping');
+            return;
+        }
+
         console.log('[TimeCheck Extension] Enabling attendance interceptor extension');
-        this._systemActions = SystemActions.getDefault();
-        const proto = Object.getPrototypeOf(this._systemActions);
-        this._proto = proto;
-        this._isBypassing = false;
-
-        this._origActivateLogout = proto.activateLogout || this._systemActions.activateLogout;
-        this._origActivatePowerOff = proto.activatePowerOff || this._systemActions.activatePowerOff;
-        this._origActivateRestart = proto.activateRestart || this._systemActions.activateRestart;
-        this._origActivateAction = proto.activateAction || this._systemActions.activateAction;
-
-        const self = this;
-
-        const wrappedLogout = function() {
-            console.log('[TimeCheck Extension] Intercepted activateLogout');
-            self._handleAction('logout', () => self._origActivateLogout.call(this));
-        };
-
-        const wrappedPowerOff = function() {
-            console.log('[TimeCheck Extension] Intercepted activatePowerOff');
-            self._handleAction('shutdown', () => self._origActivatePowerOff.call(this));
-        };
-
-        const wrappedRestart = function() {
-            console.log('[TimeCheck Extension] Intercepted activateRestart');
-            self._handleAction('reboot', () => self._origActivateRestart.call(this));
-        };
-
-        const wrappedAction = function(id) {
-            console.log(`[TimeCheck Extension] Intercepted activateAction(${id})`);
-            if (id === 'logout') {
-                self._handleAction('logout', () => self._origActivateLogout.call(this));
-            } else if (id === 'power-off') {
-                self._handleAction('shutdown', () => self._origActivatePowerOff.call(this));
-            } else if (id === 'restart') {
-                self._handleAction('reboot', () => self._origActivateRestart.call(this));
-            } else {
-                self._origActivateAction.call(this, id);
+        try {
+            this._systemActions = SystemActions.getDefault();
+            if (!this._systemActions) {
+                console.log('[TimeCheck Extension] Could not get SystemActions default instance');
+                return;
             }
-        };
 
-        this._systemActions.activateLogout = wrappedLogout;
-        this._systemActions.activatePowerOff = wrappedPowerOff;
-        this._systemActions.activateRestart = wrappedRestart;
-        this._systemActions.activateAction = wrappedAction;
+            const proto = Object.getPrototypeOf(this._systemActions);
+            this._proto = proto;
+            this._bypassDepth = 0;
 
-        proto.activateLogout = wrappedLogout;
-        proto.activatePowerOff = wrappedPowerOff;
-        proto.activateRestart = wrappedRestart;
-        proto.activateAction = wrappedAction;
+            // Save complete property descriptors so disable() can restore
+            // the exact state that existed before the extension was enabled.
+            this._origProtoDescriptors = proto ? {
+                activateLogout: Object.getOwnPropertyDescriptor(proto, 'activateLogout'),
+                activatePowerOff: Object.getOwnPropertyDescriptor(proto, 'activatePowerOff'),
+                activateRestart: Object.getOwnPropertyDescriptor(proto, 'activateRestart'),
+                activateAction: Object.getOwnPropertyDescriptor(proto, 'activateAction'),
+            } : {};
 
-        console.log('[TimeCheck Extension] SystemActions successfully hooked');
+            this._origOwnDescriptors = {
+                activateLogout: Object.getOwnPropertyDescriptor(this._systemActions, 'activateLogout'),
+                activatePowerOff: Object.getOwnPropertyDescriptor(this._systemActions, 'activatePowerOff'),
+                activateRestart: Object.getOwnPropertyDescriptor(this._systemActions, 'activateRestart'),
+                activateAction: Object.getOwnPropertyDescriptor(this._systemActions, 'activateAction'),
+            };
+
+            const getOriginal = (name) => {
+                const own = this._origOwnDescriptors[name];
+                if (own && typeof own.value === 'function')
+                    return own.value;
+
+                const protoDescriptor = this._origProtoDescriptors[name];
+                return protoDescriptor && typeof protoDescriptor.value === 'function'
+                    ? protoDescriptor.value
+                    : null;
+            };
+
+            const effectiveLogout = getOriginal('activateLogout');
+            const effectivePowerOff = getOriginal('activatePowerOff');
+            const effectiveRestart = getOriginal('activateRestart');
+            const effectiveAction = getOriginal('activateAction');
+
+            const self = this;
+
+            const wrappedLogout = function() {
+                console.log('[TimeCheck Extension] Intercepted activateLogout');
+                self._handleAction('logout', () => {
+                    if (effectiveLogout) effectiveLogout.call(this);
+                });
+            };
+
+            const wrappedPowerOff = function() {
+                console.log('[TimeCheck Extension] Intercepted activatePowerOff');
+                self._handleAction('shutdown', () => {
+                    if (effectivePowerOff) effectivePowerOff.call(this);
+                });
+            };
+
+            const wrappedRestart = function() {
+                console.log('[TimeCheck Extension] Intercepted activateRestart');
+                self._handleAction('reboot', () => {
+                    if (effectiveRestart) effectiveRestart.call(this);
+                });
+            };
+
+            const wrappedAction = function(id) {
+                console.log(`[TimeCheck Extension] Intercepted activateAction(${id})`);
+                if (id === 'logout') {
+                    self._handleAction('logout', () => {
+                        if (effectiveLogout) effectiveLogout.call(this);
+                        else if (effectiveAction) effectiveAction.call(this, id);
+                    });
+                } else if (id === 'power-off') {
+                    self._handleAction('shutdown', () => {
+                        if (effectivePowerOff) effectivePowerOff.call(this);
+                        else if (effectiveAction) effectiveAction.call(this, id);
+                    });
+                } else if (id === 'restart') {
+                    self._handleAction('reboot', () => {
+                        if (effectiveRestart) effectiveRestart.call(this);
+                        else if (effectiveAction) effectiveAction.call(this, id);
+                    });
+                } else {
+                    // Preserve all unrelated actions untouched
+                    if (effectiveAction) effectiveAction.call(this, id);
+                }
+            };
+
+            this._systemActions.activateLogout = wrappedLogout;
+            this._systemActions.activatePowerOff = wrappedPowerOff;
+            this._systemActions.activateRestart = wrappedRestart;
+            this._systemActions.activateAction = wrappedAction;
+
+            if (proto) {
+                proto.activateLogout = wrappedLogout;
+                proto.activatePowerOff = wrappedPowerOff;
+                proto.activateRestart = wrappedRestart;
+                proto.activateAction = wrappedAction;
+            }
+
+            this._enabled = true;
+            console.log('[TimeCheck Extension] SystemActions successfully hooked');
+        } catch (err) {
+            console.warn(`[TimeCheck Extension] Error enabling extension: ${err}. Rolling back.`);
+            this.disable();
+        }
     }
 
     disable() {
         console.log('[TimeCheck Extension] Disabling attendance interceptor extension');
-        if (this._proto) {
-            if (this._origActivateLogout) this._proto.activateLogout = this._origActivateLogout;
-            if (this._origActivatePowerOff) this._proto.activatePowerOff = this._origActivatePowerOff;
-            if (this._origActivateRestart) this._proto.activateRestart = this._origActivateRestart;
-            if (this._origActivateAction) this._proto.activateAction = this._origActivateAction;
+        this._bypassDepth = 0;
+
+        if (this._proto && this._origProtoDescriptors) {
+            for (const name of [
+                'activateLogout',
+                'activatePowerOff',
+                'activateRestart',
+                'activateAction',
+            ]) {
+                const descriptor = this._origProtoDescriptors[name];
+                if (descriptor)
+                    Object.defineProperty(this._proto, name, descriptor);
+                else
+                    delete this._proto[name];
+            }
         }
-        if (this._systemActions) {
-            delete this._systemActions.activateLogout;
-            delete this._systemActions.activatePowerOff;
-            delete this._systemActions.activateRestart;
-            delete this._systemActions.activateAction;
+
+        if (this._systemActions && this._origOwnDescriptors) {
+            for (const name of [
+                'activateLogout',
+                'activatePowerOff',
+                'activateRestart',
+                'activateAction',
+            ]) {
+                const descriptor = this._origOwnDescriptors[name];
+                if (descriptor)
+                    Object.defineProperty(this._systemActions, name, descriptor);
+                else
+                    delete this._systemActions[name];
+            }
         }
-        this._origActivateLogout = null;
-        this._origActivatePowerOff = null;
-        this._origActivateRestart = null;
-        this._origActivateAction = null;
+
+        this._origProtoDescriptors = null;
+        this._origOwnDescriptors = null;
+
         this._proto = null;
         this._systemActions = null;
+        this._enabled = false;
+    }
+
+    // _safeProceed increments _bypassDepth so that any re-entrant intercept
+    // call triggered by proceedFn (e.g. GNOME calling back into activateLogout)
+    // is immediately forwarded without another D-Bus round-trip.
+    // The depth is decremented on the next main-loop iteration so the hook
+    // re-activates cleanly for future actions.
+    // Errors from proceedFn propagate to the caller — we must NOT swallow them.
+    _safeProceed(proceedFn) {
+        this._bypassDepth++;
+        try {
+            if (typeof proceedFn === 'function') {
+                proceedFn();
+            }
+        } finally {
+            GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
+                this._bypassDepth = Math.max(0, this._bypassDepth - 1);
+                return GLib.SOURCE_REMOVE;
+            });
+        }
     }
 
     async _handleAction(action, proceedFn) {
-        if (this._isBypassing) {
-            proceedFn();
+        if (this._bypassDepth > 0) {
+            if (typeof proceedFn === 'function') proceedFn();
             return;
         }
 
         try {
-            console.log(`[TimeCheck Extension] Calling D-Bus RequestAction for ${action}...`);
+            console.log(`[TimeCheck Extension] Intercepted ${action}; checking attendance via D-Bus...`);
             const reply = await Gio.DBus.session.call(
                 DBUS_BUS_NAME,
                 DBUS_OBJECT_PATH,
@@ -109,29 +210,14 @@ export default class TimeCheckAttendanceExtension extends Extension {
             console.log(`[TimeCheck Extension] Decision for ${action}: ${decision}`);
 
             if (decision === 'proceed') {
-                this._isBypassing = true;
-                try {
-                    proceedFn();
-                } finally {
-                    GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
-                        this._isBypassing = false;
-                        return GLib.SOURCE_REMOVE;
-                    });
-                }
+                this._safeProceed(proceedFn);
             } else {
                 console.log(`[TimeCheck Extension] Action ${action} cancelled by user checkout.`);
             }
         } catch (e) {
-            console.warn(`[TimeCheck Extension] D-Bus call to helper failed: ${e.message}. Proceeding with default action.`);
-            this._isBypassing = true;
-            try {
-                proceedFn();
-            } finally {
-                GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
-                    this._isBypassing = false;
-                    return GLib.SOURCE_REMOVE;
-                });
-            }
+            // Fail-open: If TimeCheck is not running or D-Bus fails, always allow normal GNOME action
+            console.warn(`[TimeCheck Extension] D-Bus call failed: ${e.message}. Failing open with default action.`);
+            this._safeProceed(proceedFn);
         }
     }
 }

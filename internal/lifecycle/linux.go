@@ -25,11 +25,14 @@ type LinuxLifecycleManager struct {
 	promptChecker        PromptChecker
 	checkInPromptChecker PromptChecker
 
-	mu                sync.Mutex
-	state             State
-	lastAction        ActionType
-	loginHandled      bool
-	sessionConn       *dbus.Conn
+	mu               sync.Mutex
+	state            State
+	lastAction       ActionType
+	loginHandled     bool
+	sessionConn      *dbus.Conn
+	// pendingDecisionCh is non-nil only while a checkout dialog is active.
+	// Concurrent D-Bus requests while a dialog is already pending must
+	// fail-open (return "proceed") rather than queue or spawn a new dialog.
 	pendingDecisionCh chan string
 	done              chan struct{}
 	sigChan           chan os.Signal
@@ -72,20 +75,25 @@ func (m *LinuxLifecycleManager) shouldPromptCheckInLocked() bool {
 	if m.promptChecker != nil {
 		return m.promptChecker()
 	}
-	return true
+	return false
 }
 
-// Start installs the GNOME extension, registers the D-Bus service, and performs initial login check.
+// Start registers the session D-Bus service com.odoo.TimeCheck and starts listeners.
 func (m *LinuxLifecycleManager) Start() error {
-	// 1. Install and enable the GNOME Shell extension
-	if err := InstallAndEnableExtension(); err != nil {
-		log.Printf("lifecycle: extension install/enable: %v", err)
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	// 1. Install & enable GNOME Shell extension if in GNOME session
+	if os.Getenv("XDG_CURRENT_DESKTOP") == "GNOME" || os.Getenv("GNOME_DESKTOP_SESSION_ID") != "" || os.Getenv("DESKTOP_SESSION") == "gnome" || os.Getenv("DESKTOP_SESSION") == "ubuntu" {
+		if err := InstallAndEnableExtension(); err != nil {
+			log.Printf("lifecycle: install GNOME extension: %v", err)
+		}
 	}
 
-	// 2. Register D-Bus service on Session Bus
-	sessConn, err := dbus.ConnectSessionBus()
+	// 2. Connect to Session D-Bus and export com.odoo.TimeCheck
+	sessConn, err := dbus.SessionBus()
 	if err != nil {
-		log.Printf("lifecycle: connect session bus: %v", err)
+		log.Printf("lifecycle: connect to session bus: %v", err)
 	} else {
 		m.sessionConn = sessConn
 		if err := sessConn.Export(m, DBusObjectPath, DBusInterfaceName); err != nil {
@@ -128,20 +136,24 @@ func (m *LinuxLifecycleManager) Stop() {
 		signal.Stop(m.sigChan)
 	}
 
-	// Resolve any pending request
-	if m.pendingDecisionCh != nil {
-		select {
-		case m.pendingDecisionCh <- "cancel":
-		default:
-		}
-		m.pendingDecisionCh = nil
-	}
+	// Resolve any pending request fail-open
+	m.resolveDecisionLocked("proceed")
 
 	if m.sessionConn != nil {
 		_ = m.sessionConn.Close()
 		m.sessionConn = nil
 	}
 	m.mu.Unlock()
+}
+
+func (m *LinuxLifecycleManager) resolveDecisionLocked(decision string) {
+	if m.pendingDecisionCh != nil {
+		select {
+		case m.pendingDecisionCh <- decision:
+		default:
+		}
+		m.pendingDecisionCh = nil
+	}
 }
 
 // listenSignals handles OS process signals.
@@ -161,51 +173,70 @@ func (m *LinuxLifecycleManager) listenSignals() {
 	}
 }
 
+func (m *LinuxLifecycleManager) isStoppedLocked() bool {
+	select {
+	case <-m.done:
+		return true
+	default:
+		return false
+	}
+}
+
 // RequestAction is the exported D-Bus method called by the GNOME Shell extension
 // when the user clicks Logout, Power Off, or Restart in GNOME Shell.
-// Returns "proceed" ONLY if user clicks Skip, or "cancel" for all other cases.
+// Returns "proceed" if checkout is not needed or user skips; returns "cancel" if checkout aborts shutdown.
 func (m *LinuxLifecycleManager) RequestAction(action string) (string, *dbus.Error) {
-	log.Printf("lifecycle: intercepted GNOME Shell action: %s", action)
+	log.Printf("lifecycle: intercepted GNOME Shell action: %q", action)
+
+	// 1. Explicitly validate requested action
+	act, ok := ValidateAction(action)
+	if !ok {
+		log.Printf("lifecycle: rejected unknown/unsupported action %q; failing open with proceed", action)
+		// Never treat unknown action as shutdown. Fail open so standard GNOME actions are not blocked.
+		return "proceed", nil
+	}
 
 	m.mu.Lock()
-	act := ActionType(action)
-	if act == "" {
-		act = ActionShutdown
+	if m.isStoppedLocked() {
+		m.mu.Unlock()
+		log.Printf("lifecycle: service stopped; proceeding with action %s", act)
+		return "proceed", nil
 	}
+
 	m.lastAction = act
 
-	// Check if attendance checkout is required
+	// 2. Check if attendance checkout is required
 	if !m.shouldPromptCheckOutLocked() {
-		log.Printf("lifecycle: no active attendance session requiring checkout; proceeding with %s", action)
+		log.Printf("lifecycle: no active attendance session requiring checkout; proceeding with %s", act)
 		m.state = StateRunning
 		m.mu.Unlock()
 		return "proceed", nil
 	}
 
-	// Cancel any existing pending channel if one was open
-	if m.pendingDecisionCh != nil {
-		select {
-		case m.pendingDecisionCh <- "cancel":
-		default:
-		}
+	// 3. Concurrency handling: only one checkout dialog runs at a time.
+	// Duplicate requests are cancelled so GNOME cannot proceed while a checkout
+	// dialog is already open — returning "proceed" here would defeat the interception.
+	if m.state == StateCheckingOut {
+		m.mu.Unlock()
+		log.Printf("lifecycle: checkout dialog already active; rejecting duplicate %s request", act)
+		return "cancel", nil
 	}
 
+	// 4. Arm the decision channel and start the checkout dialog
 	decisionCh := make(chan string, 1)
 	m.pendingDecisionCh = decisionCh
 	m.state = StateCheckingOut
 	m.mu.Unlock()
 
-	// Show Checkout reminder dialog
 	m.emitter.Emit("shutdown-requested", map[string]string{
 		"action": string(act),
 	})
 
-	// Wait for user decision or safety timeout
+	// 5. Wait for user decision, safety timeout, or service shutdown
 	select {
 	case decision := <-decisionCh:
-		log.Printf("lifecycle: user decision for %s: %s", action, decision)
+		log.Printf("lifecycle: user decision for %s: %s", act, decision)
 		m.mu.Lock()
-		m.pendingDecisionCh = nil
 		if decision == "proceed" {
 			m.state = StateAllowExit
 		} else {
@@ -215,16 +246,21 @@ func (m *LinuxLifecycleManager) RequestAction(action string) (string, *dbus.Erro
 		return decision, nil
 
 	case <-time.After(120 * time.Second):
-		log.Printf("lifecycle: timeout waiting for user decision on %s; cancelling action (staying alive)", action)
+		log.Printf("lifecycle: timeout waiting for user decision on %s; cancelling action (staying alive)", act)
 		m.mu.Lock()
-		m.pendingDecisionCh = nil
-		m.state = StateRunning
+		// Guard state reset on ownership: a stale timer from a previous request
+		// must not corrupt the state of a newer dialog that has since taken over.
+		if m.pendingDecisionCh == decisionCh {
+			m.pendingDecisionCh = nil
+			m.state = StateRunning
+		}
 		m.mu.Unlock()
 		m.emitter.Emit("shutdown-dialog-closed", "timeout")
 		return "cancel", nil
 
 	case <-m.done:
-		return "cancel", nil
+		log.Printf("lifecycle: manager stopped during request for %s; proceeding fail-open", act)
+		return "proceed", nil
 	}
 }
 
@@ -289,13 +325,7 @@ func (m *LinuxLifecycleManager) AbortAction() {
 
 	log.Println("lifecycle: aborting GNOME end-session action (keeping session alive)")
 	m.state = StateRunning
-	if m.pendingDecisionCh != nil {
-		select {
-		case m.pendingDecisionCh <- "cancel":
-		default:
-		}
-		m.pendingDecisionCh = nil
-	}
+	m.resolveDecisionLocked("cancel")
 	m.emitter.Emit("shutdown-dialog-closed", "cancelled")
 }
 
@@ -307,13 +337,7 @@ func (m *LinuxLifecycleManager) ProceedAction() {
 
 	log.Println("lifecycle: user chose skip; proceeding with original GNOME action")
 	m.state = StateAllowExit
-	if m.pendingDecisionCh != nil {
-		select {
-		case m.pendingDecisionCh <- "proceed":
-		default:
-		}
-		m.pendingDecisionCh = nil
-	}
+	m.resolveDecisionLocked("proceed")
 	m.emitter.Emit("shutdown-dialog-closed", "continue")
 }
 

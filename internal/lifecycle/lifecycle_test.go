@@ -348,3 +348,147 @@ func TestLifecycle_InstallExtension(t *testing.T) {
 	}
 }
 
+func TestLifecycle_ValidateAction(t *testing.T) {
+	validTests := []struct {
+		raw      string
+		expected lifecycle.ActionType
+	}{
+		{"logout", lifecycle.ActionLogout},
+		{"shutdown", lifecycle.ActionShutdown},
+		{"power-off", lifecycle.ActionShutdown},
+		{"poweroff", lifecycle.ActionShutdown},
+		{"reboot", lifecycle.ActionReboot},
+		{"restart", lifecycle.ActionReboot},
+		{"LOGOUT", lifecycle.ActionLogout},
+		{" Power-Off ", lifecycle.ActionShutdown},
+		{"  Restart  ", lifecycle.ActionReboot},
+	}
+
+	for _, tt := range validTests {
+		t.Run("Valid_"+tt.raw, func(t *testing.T) {
+			act, ok := lifecycle.ValidateAction(tt.raw)
+			if !ok {
+				t.Fatalf("ValidateAction(%q) returned false, expected true", tt.raw)
+			}
+			if act != tt.expected {
+				t.Errorf("ValidateAction(%q) = %v, expected %v", tt.raw, act, tt.expected)
+			}
+		})
+	}
+
+	invalidTests := []string{
+		"",
+		"   ",
+		"sleep",
+		"suspend",
+		"hibernate",
+		"lock",
+		"unknown",
+		"shutdown; rm -rf /",
+		"logout\n",
+		"power_off",
+	}
+
+	for _, raw := range invalidTests {
+		t.Run("Invalid_"+raw, func(t *testing.T) {
+			_, ok := lifecycle.ValidateAction(raw)
+			if ok {
+				t.Errorf("ValidateAction(%q) returned true, expected false", raw)
+			}
+		})
+	}
+}
+
+func TestLifecycle_RequestAction_InvalidAction_ReturnsProceedFailOpen(t *testing.T) {
+	emitter := &fakeEmitter{}
+	mgr := lifecycle.NewLinuxLifecycleManager(emitter)
+	mgr.SetPromptChecker(func() bool {
+		return true
+	})
+
+	decision, err := mgr.RequestAction("invalid-action-xyz")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if decision != "proceed" {
+		t.Errorf("expected decision 'proceed' on invalid action, got %q", decision)
+	}
+	if len(emitter.Events()) != 0 {
+		t.Errorf("expected no events emitted for invalid action, got %v", emitter.Events())
+	}
+	if mgr.GetState() != lifecycle.StateRunning {
+		t.Errorf("expected StateRunning, got %v", mgr.GetState())
+	}
+}
+
+func TestLifecycle_RequestAction_ConcurrentRequests(t *testing.T) {
+	emitter := &fakeEmitter{}
+	mgr := lifecycle.NewLinuxLifecycleManager(emitter)
+	mgr.SetPromptChecker(func() bool {
+		return true
+	})
+
+	const count = 5
+	decisions := make(chan string, count)
+	var wg sync.WaitGroup
+
+	for i := 0; i < count; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			decision, err := mgr.RequestAction("shutdown")
+			if err != nil {
+				decisions <- "error"
+				return
+			}
+			decisions <- decision
+		}()
+	}
+
+	time.Sleep(50 * time.Millisecond)
+	mgr.UserSkipped()
+
+	wg.Wait()
+	close(decisions)
+
+	// Exactly one request owns the dialog and resolves via UserSkipped → "proceed".
+	// All other concurrent requests are immediately cancelled to prevent GNOME
+	// from proceeding while the checkout dialog is still open.
+	var nProceed, nCancel int
+	for d := range decisions {
+		switch d {
+		case "proceed":
+			nProceed++
+		case "cancel":
+			nCancel++
+		default:
+			t.Errorf("unexpected decision: %s", d)
+		}
+	}
+	if nProceed != 1 {
+		t.Errorf("expected exactly 1 'proceed', got %d", nProceed)
+	}
+	if nCancel != count-1 {
+		t.Errorf("expected %d 'cancel' decisions, got %d", count-1, nCancel)
+	}
+}
+
+func TestLifecycle_RequestAction_ManagerStopped_ReturnsProceed(t *testing.T) {
+	emitter := &fakeEmitter{}
+	mgr := lifecycle.NewLinuxLifecycleManager(emitter)
+	mgr.SetPromptChecker(func() bool {
+		return true
+	})
+
+	mgr.Stop()
+
+	decision, err := mgr.RequestAction("shutdown")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if decision != "proceed" {
+		t.Errorf("expected decision 'proceed' when manager stopped, got %s", decision)
+	}
+}
+
+

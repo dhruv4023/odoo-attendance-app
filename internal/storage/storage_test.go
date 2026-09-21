@@ -99,3 +99,76 @@ func TestNewFileStore(t *testing.T) {
 		t.Errorf("Dir() = %q, want %q", s.Dir(), want)
 	}
 }
+
+func TestStorage_PathTraversalPrevention(t *testing.T) {
+	s := newTestStore(t)
+	traversalNames := []string{
+		"../test.json",
+		"../../etc/passwd",
+		"/etc/passwd",
+		"sub/folder.json",
+		".",
+		"..",
+		"",
+	}
+
+	for _, name := range traversalNames {
+		t.Run("Write_"+name, func(t *testing.T) {
+			err := s.WriteJSON(name, map[string]string{"foo": "bar"})
+			if !errors.Is(err, storage.ErrInvalidFileName) {
+				t.Errorf("expected ErrInvalidFileName for WriteJSON(%q), got %v", name, err)
+			}
+		})
+
+		t.Run("Read_"+name, func(t *testing.T) {
+			var v interface{}
+			err := s.ReadJSON(name, &v)
+			if !errors.Is(err, storage.ErrInvalidFileName) {
+				t.Errorf("expected ErrInvalidFileName for ReadJSON(%q), got %v", name, err)
+			}
+		})
+	}
+}
+
+func TestStorage_FilePermissions(t *testing.T) {
+	s := newTestStore(t)
+	if err := s.WriteJSON("secure.json", map[string]string{"secret": "val"}); err != nil {
+		t.Fatalf("WriteJSON: %v", err)
+	}
+
+	path := filepath.Join(s.Dir(), "secure.json")
+	fi, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("stat: %v", err)
+	}
+
+	// Mode should be 0600 (-rw-------)
+	perm := fi.Mode().Perm()
+	if perm != 0600 {
+		t.Errorf("expected file mode 0600, got %o", perm)
+	}
+}
+
+func TestStorage_SymlinkProtection(t *testing.T) {
+	s := newTestStore(t)
+	targetPath := filepath.Join(t.TempDir(), "target.json")
+	_ = os.WriteFile(targetPath, []byte(`{"initial":"data"}`), 0600)
+
+	symlinkPath := filepath.Join(s.Dir(), "link.json")
+	if err := os.Symlink(targetPath, symlinkPath); err != nil {
+		t.Fatalf("failed to create test symlink: %v", err)
+	}
+
+	// Writing to link.json should not overwrite target.json
+	newPayload := map[string]string{"updated": "value"}
+	if err := s.WriteJSON("link.json", newPayload); err != nil {
+		t.Fatalf("WriteJSON on symlink path failed: %v", err)
+	}
+
+	// Verify target.json was NOT overwritten through the symlink
+	targetContent, _ := os.ReadFile(targetPath)
+	if string(targetContent) != `{"initial":"data"}` {
+		t.Errorf("target file was overwritten through symlink! Content: %s", string(targetContent))
+	}
+}
+

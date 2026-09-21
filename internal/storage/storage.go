@@ -56,8 +56,21 @@ func NewFileStoreAt(dir string) (*FileStore, error) {
 // Dir returns the storage directory.
 func (s *FileStore) Dir() string { return s.dir }
 
+// ErrInvalidFileName is returned when a storage filename is invalid or attempts path traversal.
+var ErrInvalidFileName = errors.New("storage: invalid file name")
+
+func validateFileName(name string) error {
+	if name == "" || name == "." || name == ".." || filepath.Base(name) != name || filepath.IsAbs(name) {
+		return ErrInvalidFileName
+	}
+	return nil
+}
+
 // ReadJSON reads and decodes a named JSON file.
 func (s *FileStore) ReadJSON(name string, v interface{}) error {
+	if err := validateFileName(name); err != nil {
+		return err
+	}
 	path := filepath.Join(s.dir, name)
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -75,16 +88,22 @@ func (s *FileStore) ReadJSON(name string, v interface{}) error {
 // WriteJSON atomically encodes and writes a named JSON file.
 // It writes to a temp file first, then renames to ensure atomicity.
 func (s *FileStore) WriteJSON(name string, v interface{}) error {
+	if err := validateFileName(name); err != nil {
+		return err
+	}
 	data, err := json.MarshalIndent(v, "", "  ")
 	if err != nil {
 		return fmt.Errorf("storage: encode %s: %w", name, err)
 	}
+
 	// Write to a temp file in the same directory.
 	tmp, err := os.CreateTemp(s.dir, ".tmp-")
 	if err != nil {
 		return fmt.Errorf("storage: create temp: %w", err)
 	}
 	tmpPath := tmp.Name()
+	_ = os.Chmod(tmpPath, 0600)
+
 	if _, err := tmp.Write(data); err != nil {
 		tmp.Close()
 		os.Remove(tmpPath)
@@ -96,10 +115,20 @@ func (s *FileStore) WriteJSON(name string, v interface{}) error {
 		return fmt.Errorf("storage: sync temp: %w", err)
 	}
 	tmp.Close()
+
 	dest := filepath.Join(s.dir, name)
+
+	// Avoid following unexpected symlinks on destination file
+	if fi, err := os.Lstat(dest); err == nil {
+		if fi.Mode()&os.ModeSymlink != 0 {
+			_ = os.Remove(dest)
+		}
+	}
+
 	if err := os.Rename(tmpPath, dest); err != nil {
 		os.Remove(tmpPath)
 		return fmt.Errorf("storage: rename to %s: %w", dest, err)
 	}
+	_ = os.Chmod(dest, 0600)
 	return nil
 }

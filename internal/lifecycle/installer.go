@@ -65,7 +65,7 @@ func InstallAndEnableExtension() error {
 	}
 
 	extDir := filepath.Join(homeDir, ".local", "share", "gnome-shell", "extensions", ExtensionUUID)
-	if err := os.MkdirAll(extDir, 0755); err != nil {
+	if err := os.MkdirAll(extDir, 0700); err != nil {
 		return fmt.Errorf("mkdir extension dir %s: %w", extDir, err)
 	}
 
@@ -74,7 +74,7 @@ func InstallAndEnableExtension() error {
 	// Write metadata.json if missing or outdated
 	metaPath := filepath.Join(extDir, "metadata.json")
 	if isFileDifferent(metaPath, metadataPayload) {
-		if err := os.WriteFile(metaPath, metadataPayload, 0644); err != nil {
+		if err := os.WriteFile(metaPath, metadataPayload, 0600); err != nil {
 			return fmt.Errorf("write metadata.json: %w", err)
 		}
 		log.Printf("lifecycle: installed extension metadata at %s", metaPath)
@@ -83,7 +83,7 @@ func InstallAndEnableExtension() error {
 	// Write extension.js if missing or outdated
 	jsPath := filepath.Join(extDir, "extension.js")
 	if isFileDifferent(jsPath, jsPayload) {
-		if err := os.WriteFile(jsPath, jsPayload, 0644); err != nil {
+		if err := os.WriteFile(jsPath, jsPayload, 0600); err != nil {
 			return fmt.Errorf("write extension.js: %w", err)
 		}
 		log.Printf("lifecycle: installed extension.js at %s", jsPath)

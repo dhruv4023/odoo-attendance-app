@@ -2,6 +2,8 @@
 // Linux session lifecycle interception via systemd-logind D-Bus and session managers.
 package lifecycle
 
+import "strings"
+
 // State represents the current lifecycle state.
 type State int
 
@@ -33,6 +35,25 @@ type PromptChecker func() bool
 type EventEmitter interface {
 	Emit(name string, data ...interface{})
 }
+
+// ValidateAction validates and normalizes an action string received from D-Bus or UI.
+// Only "logout", "shutdown" (or "power-off"), and "reboot" (or "restart") are supported.
+func ValidateAction(raw string) (ActionType, bool) {
+	if strings.ContainsAny(raw, "\r\n\t\x00") {
+		return "", false
+	}
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "logout":
+		return ActionLogout, true
+	case "shutdown", "power-off", "poweroff":
+		return ActionShutdown, true
+	case "reboot", "restart":
+		return ActionReboot, true
+	default:
+		return "", false
+	}
+}
+
 
 
 
