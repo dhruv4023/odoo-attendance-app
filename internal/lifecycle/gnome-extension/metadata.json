@@ -1,5 +1,5 @@
 {
-  "uuid": "timecheck-attendance@odoo.com",
+  "uuid": "time-check-attendance",
   "name": "TimeCheck Attendance Interceptor",
   "description": "Intercepts GNOME Shell logout, power off, and restart actions to show attendance check-out reminder",
   "shell-version": [

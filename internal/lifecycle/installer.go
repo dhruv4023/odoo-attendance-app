@@ -11,7 +11,7 @@ import (
 	"strings"
 )
 
-const ExtensionUUID = "timecheck-attendance@odoo.com"
+const ExtensionUUID = "time-check-attendance"
 
 //go:embed gnome-extension/metadata.json
 var embeddedMetadata []byte
