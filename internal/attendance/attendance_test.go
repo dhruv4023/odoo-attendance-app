@@ -166,8 +166,54 @@ func TestForceCheckOut(t *testing.T) {
 	if err := m.ForceCheckOut(); err != nil {
 		t.Fatalf("ForceCheckOut: %v", err)
 	}
-	if !m.IsCheckedIn() || !m.IsCheckedOut() {
-		t.Error("expected both IsCheckedIn and IsCheckedOut to be true after ForceCheckOut")
+	if !m.IsCheckedOut() {
+		t.Error("expected IsCheckedOut to be true after ForceCheckOut")
+	}
+	if len(m.GetStatus().Logs) != 2 {
+		t.Errorf("expected 2 logs (check_in + check_out), got %d", len(m.GetStatus().Logs))
+	}
+}
+
+func TestMultipleCheckInsAndCheckOuts(t *testing.T) {
+	m, _ := newTestManager(t, monday())
+	// 1. First check-in
+	if err := m.CheckIn(); err != nil {
+		t.Fatalf("CheckIn 1: %v", err)
+	}
+	if !m.IsCheckedIn() {
+		t.Error("expected IsCheckedIn=true")
+	}
+
+	// 2. First check-out
+	if err := m.CheckOut(); err != nil {
+		t.Fatalf("CheckOut 1: %v", err)
+	}
+	if !m.IsCheckedOut() {
+		t.Error("expected IsCheckedOut=true")
+	}
+
+	// 3. Second check-in
+	if err := m.CheckIn(); err != nil {
+		t.Fatalf("CheckIn 2: %v", err)
+	}
+	if !m.IsCheckedIn() {
+		t.Error("expected IsCheckedIn=true after 2nd checkin")
+	}
+
+	// 4. Second check-out
+	if err := m.CheckOut(); err != nil {
+		t.Fatalf("CheckOut 2: %v", err)
+	}
+	if !m.IsCheckedOut() {
+		t.Error("expected IsCheckedOut=true after 2nd checkout")
+	}
+
+	logs := m.GetStatus().Logs
+	if len(logs) != 4 {
+		t.Fatalf("expected 4 logs recorded, got %d", len(logs))
+	}
+	if logs[0].Type != "check_in" || logs[1].Type != "check_out" || logs[2].Type != "check_in" || logs[3].Type != "check_out" {
+		t.Errorf("unexpected logs sequence: %+v", logs)
 	}
 }
 
