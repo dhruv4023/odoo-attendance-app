@@ -281,17 +281,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onBack }) => {
       <div className="rounded-2xl bg-slate-900/80 border border-slate-800/80 p-4 shadow-lg flex flex-col gap-3">
         <h2 className="text-xs font-bold tracking-wider uppercase text-slate-400 flex items-center gap-1.5">
           <Clock className="w-3.5 h-3.5 text-amber-400" />
-          Check-Out Reminder Popup Window
+          Check-in/Out Reminder Popup Window
         </h2>
-
-        <p className="text-[11px] text-slate-400">
-          Configure the active time range around your scheduled check-out time when the check-out reminder popup will be triggered during shutdown or logout.
-        </p>
-
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="block text-xs font-medium text-slate-400 mb-1">
-              Before Check-Out
+              Before Check-in/Out
             </label>
             <div className="flex items-center gap-2">
               <input
@@ -308,8 +303,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onBack }) => {
 
           <div>
             <label className="block text-xs font-medium text-slate-400 mb-1">
-              After Check-Out
-            </label>
+              After Check-in/Out
+            </label>  
             <div className="flex items-center gap-2">
               <input
                 type="number"
@@ -413,12 +408,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onBack }) => {
             />
           </div>
           <span className="text-xs font-semibold text-slate-200">
-            Enable scheduled check-in / check-out notifications
+            Remind at scheduled work times
           </span>
         </label>
-        <p className="text-[11px] text-slate-500 mt-2 pl-10">
-          Sends system desktop notifications at scheduled check-in and check-out times. Turn off if you only want popup reminders during login / logout / shutdown.
-        </p>
       </div>
 
       {/* Application Settings Card */}

@@ -148,11 +148,12 @@ func (a *AppService) Startup(app *application.App) error {
 
 	// Scheduler
 	realTimer := scheduler.RealTimer{}
+	emitter := &showWindowEmitter{svc: a, delegate: a.emitter}
 	s := scheduler.NewScheduler(
 		scheduler.RealClock{},
 		realTimer,
 		notifier,
-		a.emitter,
+		emitter,
 		att,
 		store,
 	)
@@ -162,9 +163,7 @@ func (a *AppService) Startup(app *application.App) error {
 	}
 
 	// Lifecycle (login / logout / shutdown interception via D-Bus logind and session managers)
-	lm := lifecycle.NewLinuxLifecycleManager(
-		&showWindowEmitter{svc: a, delegate: a.emitter},
-	)
+	lm := lifecycle.NewLinuxLifecycleManager(emitter)
 	lm.SetCheckInPromptChecker(func() bool {
 		// Only prompt check-in dialog on login if the user has not checked in today.
 		return !a.attendance.IsCheckedIn()
@@ -222,6 +221,16 @@ func (e *showWindowEmitter) Emit(name string, data ...interface{}) {
 			}
 		}
 		e.svc.ShowCheckOutWindow(action)
+	} else if name == "reminder-triggered" {
+		if len(data) > 0 {
+			if m, ok := data[0].(map[string]string); ok {
+				if m["type"] == "check_in" {
+					e.svc.ShowCheckInWindow()
+				} else if m["type"] == "check_out" {
+					e.svc.ShowCheckOutWindow("reminder")
+				}
+			}
+		}
 	} else if name == "login-dialog-closed" {
 		e.svc.HideCheckInWindow()
 	} else if name == "shutdown-dialog-closed" {

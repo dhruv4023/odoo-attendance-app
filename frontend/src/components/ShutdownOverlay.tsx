@@ -53,6 +53,7 @@ export const ShutdownOverlay: React.FC<ShutdownOverlayProps> = ({ isOpen, action
 
   if (!isOpen) return null;
 
+  const isReminder = action === 'reminder';
   const actionLabel = action === 'logout' ? 'logging out' : action === 'reboot' ? 'restarting' : 'powering off';
 
   const handleCheckOut = async () => {
@@ -70,12 +71,12 @@ export const ShutdownOverlay: React.FC<ShutdownOverlayProps> = ({ isOpen, action
   return (
     <div className="flex-1 flex items-center justify-center p-4 z-20">
       <div className="relative w-full max-w-sm rounded-2xl bg-slate-900/90 border border-slate-700/80 p-5 shadow-2xl flex flex-col items-center text-center animate-slide-up">
-        {/* Close Button ('X' cancels logout/shutdown) */}
+        {/* Close Button ('X' cancels dialog) */}
         <button
           type="button"
           onClick={handleCancel}
           disabled={loading}
-          aria-label="Cancel and stay logged in"
+          aria-label="Close reminder"
           className="absolute top-3.5 right-3.5 p-1 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors cursor-pointer"
         >
           <X className="w-4 h-4" />
@@ -89,7 +90,9 @@ export const ShutdownOverlay: React.FC<ShutdownOverlayProps> = ({ isOpen, action
           Check Out Reminder
         </h2>
         <p className="text-xs text-slate-400 leading-relaxed mb-5">
-          No attendance log was recorded recently before {actionLabel}. Would you like to check out now?
+          {isReminder
+            ? "Your scheduled work shift has ended. Would you like to check out now?"
+            : `No attendance log was recorded recently before ${actionLabel}. Would you like to check out now?`}
         </p>
 
         <div className="flex gap-2.5 w-full">

@@ -43,23 +43,19 @@ runs:
       with:
         node-version: ${{ inputs.node-version }}
 
+    - name: Install Linux dependencies
+      if: runner.os == 'Linux'
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libgtk-4-dev libwebkitgtk-6.0-dev libgtk-3-dev libwebkit2gtk-4.1-dev libayatana-appindicator3-dev pkg-config gcc build-essential
+
     - name: Install Task & Wails3 CLI
       shell: bash
       run: |
         go install github.com/go-task/task/v3/cmd/task@latest
         go install github.com/wailsapp/wails/v3/cmd/wails3@latest
         echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
-
-    - name: Install Linux dependencies
-      if: runner.os == 'Linux'
-      shell: bash
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev libappindicator3-dev pkg-config gcc
-
-    - name: Run Tests
-      shell: bash
-      run: go test -v ./...
 
     - name: Build Application with Wails v3
       shell: bash
@@ -69,6 +65,10 @@ runs:
           cp bin/timecheck "bin/${{ inputs.build-name }}"
           chmod +x "bin/${{ inputs.build-name }}"
         fi
+
+    - name: Run Tests
+      shell: bash
+      run: go test -v ./...
 
     - name: Upload Artifacts
       if: inputs.package == 'true'
