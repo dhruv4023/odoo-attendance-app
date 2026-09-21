@@ -1,18 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import * as AppService from '../../bindings/time-check/appservice.js';
-import { DailyStatus, NextReminder, Settings, AppInfo } from '../types.js';
+import { DailyStatus, Settings, AppInfo } from '../types.js';
 import {
   CheckCircle2,
   LogOut,
   Settings as SettingsIcon,
   Sun,
   Moon,
-  Clock,
   Calendar,
   AlertCircle,
-  Bell,
   ListOrdered,
-  RefreshCw
+  RefreshCw,
+  ShieldCheck,
+  ExternalLink
 } from 'lucide-react';
 
 interface MainViewProps {
@@ -27,7 +27,6 @@ export const MainView: React.FC<MainViewProps> = ({
   onRefresh,
 }) => {
   const [currentTime, setCurrentTime] = useState(new Date());
-  const [nextReminder, setNextReminder] = useState<NextReminder | null>(null);
   const [settings, setSettings] = useState<Settings | null>(null);
   const [appInfo, setAppInfo] = useState<AppInfo | null>(null);
   const [actionLoading, setActionLoading] = useState<'check_in' | 'check_out' | null>(null);
@@ -42,11 +41,7 @@ export const MainView: React.FC<MainViewProps> = ({
 
   const loadData = async () => {
     try {
-      const [nr, setts] = await Promise.all([
-        AppService.GetNextReminder(),
-        AppService.GetSettings(),
-      ]);
-      setNextReminder(nr);
+      const setts = await AppService.GetSettings();
       setSettings(setts);
 
       if (typeof AppService.GetAppInfo === 'function') {
@@ -58,7 +53,6 @@ export const MainView: React.FC<MainViewProps> = ({
     }
   };
 
-  // Fetch Schedule, Next Reminder & App Info
   useEffect(() => {
     loadData();
     const interval = setInterval(loadData, 60000);
@@ -84,7 +78,7 @@ export const MainView: React.FC<MainViewProps> = ({
     setActionLoading('check_in');
     try {
       const res = await AppService.CheckIn();
-      showMsg(res.message || (res.ok ? 'Checked in! Attendance page opened.' : 'Check-in failed.'), !res.ok);
+      showMsg(res.message || (res.ok ? 'Checked in! Odoo attendance opened.' : 'Check-in failed.'), !res.ok);
       onRefresh();
     } catch (e) {
       showMsg(String(e), true);
@@ -97,7 +91,7 @@ export const MainView: React.FC<MainViewProps> = ({
     setActionLoading('check_out');
     try {
       const res = await AppService.CheckOut();
-      showMsg(res.message || (res.ok ? 'Checked out! Attendance page opened.' : 'Check-out failed.'), !res.ok);
+      showMsg(res.message || (res.ok ? 'Checked out! Odoo attendance opened.' : 'Check-out failed.'), !res.ok);
       onRefresh();
     } catch (e) {
       showMsg(String(e), true);
@@ -137,19 +131,10 @@ export const MainView: React.FC<MainViewProps> = ({
     return '';
   };
 
-  // Today schedule lookup
-  const dayKeys = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'] as const;
-  const currentDayKey = dayKeys[currentTime.getDay()];
-  const todaySchedule = settings?.schedule && currentDayKey !== 'sunday' && currentDayKey !== 'saturday'
-    ? settings.schedule[currentDayKey]
-    : currentDayKey === 'sunday' || currentDayKey === 'saturday'
-      ? settings?.schedule[currentDayKey]
-      : null;
-
   const logs = status?.logs ?? [];
 
   return (
-    <div className="flex flex-col h-full overflow-y-auto px-4 pb-4 gap-3.5 animate-slide-up">
+    <div className="flex flex-col h-full overflow-y-auto px-4 pb-4 gap-3.5 animate-slide-up select-none">
       {/* Header */}
       <div className="flex items-center justify-between pt-3 pb-1">
         <div className="w-8" />
@@ -180,30 +165,33 @@ export const MainView: React.FC<MainViewProps> = ({
 
       {/* Status Card */}
       <div
-        className={`rounded-2xl p-4 border transition-all duration-300 shadow-lg ${isCheckedIn && !isCheckedOut
+        className={`rounded-2xl p-4 border transition-all duration-300 shadow-lg ${
+          isCheckedIn && !isCheckedOut
             ? 'bg-emerald-950/20 border-emerald-500/30 shadow-emerald-950/20'
             : isCheckedOut
               ? 'bg-rose-950/20 border-rose-500/30 shadow-rose-950/20'
               : 'bg-slate-900/80 border-slate-800/80 shadow-slate-950/30'
-          }`}
+        }`}
       >
         <div className="flex flex-col items-center gap-2 text-center">
           {/* Status Badge */}
           <div
-            className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold tracking-wide border shadow-sm ${isCheckedOut
+            className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold tracking-wide border shadow-sm ${
+              isCheckedOut
                 ? 'bg-rose-500/15 border-rose-500/30 text-rose-400'
                 : isCheckedIn
                   ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400'
                   : 'bg-slate-800 border-slate-700 text-slate-400'
-              }`}
+            }`}
           >
             <span
-              className={`w-2 h-2 rounded-full ${isCheckedOut
+              className={`w-2 h-2 rounded-full ${
+                isCheckedOut
                   ? 'bg-rose-400'
                   : isCheckedIn
                     ? 'bg-emerald-400 animate-pulse-subtle'
                     : 'bg-slate-500'
-                }`}
+              }`}
             />
             {isCheckedOut ? 'Checked Out' : isCheckedIn ? 'Checked In' : 'Not Checked In'}
           </div>
@@ -216,10 +204,11 @@ export const MainView: React.FC<MainViewProps> = ({
         {/* Message Banner */}
         {message && (
           <div
-            className={`mt-3 p-2.5 rounded-xl text-xs font-medium flex items-center justify-center gap-2 text-center animate-fade-in ${message.isError
+            className={`mt-3 p-2.5 rounded-xl text-xs font-medium flex items-center justify-center gap-2 text-center animate-fade-in ${
+              message.isError
                 ? 'bg-rose-500/15 border border-rose-500/30 text-rose-400'
                 : 'bg-sky-500/15 border border-sky-500/30 text-sky-400'
-              }`}
+            }`}
           >
             <AlertCircle className="w-4 h-4 shrink-0" />
             <span>{message.text}</span>
@@ -235,7 +224,7 @@ export const MainView: React.FC<MainViewProps> = ({
             className="flex-1 inline-flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl font-semibold text-xs bg-emerald-600 hover:bg-emerald-500 active:scale-95 disabled:opacity-50 text-white shadow-md shadow-emerald-950/30 transition-all cursor-pointer"
           >
             <CheckCircle2 className="w-4 h-4" />
-            {actionLoading === 'check_in' ? 'Checking in…' : 'Check In'}
+            {actionLoading === 'check_in' ? 'Opening…' : 'Check In'}
           </button>
           <button
             type="button"
@@ -244,7 +233,7 @@ export const MainView: React.FC<MainViewProps> = ({
             className="flex-1 inline-flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl font-semibold text-xs bg-rose-600 hover:bg-rose-500 active:scale-95 disabled:opacity-50 text-white shadow-md shadow-rose-950/30 transition-all cursor-pointer"
           >
             <LogOut className="w-4 h-4" />
-            {actionLoading === 'check_out' ? 'Checking out…' : 'Check Out'}
+            {actionLoading === 'check_out' ? 'Opening…' : 'Check Out'}
           </button>
         </div>
       </div>
@@ -254,7 +243,7 @@ export const MainView: React.FC<MainViewProps> = ({
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-xs font-bold tracking-wider uppercase text-slate-400 flex items-center gap-1.5">
             <ListOrdered className="w-3.5 h-3.5 text-sky-400" />
-            Today's Logs
+            Today's Activity Logs
           </h2>
           <span className="text-[11px] font-medium text-slate-400 bg-slate-800/80 px-2 py-0.5 rounded-md border border-slate-700/50">
             {logs.length} {logs.length === 1 ? 'entry' : 'entries'}
@@ -285,10 +274,11 @@ export const MainView: React.FC<MainViewProps> = ({
                       <td className="py-2.5 px-3 text-slate-500 font-mono text-[11px]">{idx + 1}</td>
                       <td className="py-2.5 px-3">
                         <span
-                          className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md font-semibold text-[11px] border ${isCheckIn
+                          className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md font-semibold text-[11px] border ${
+                            isCheckIn
                               ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
                               : 'bg-rose-500/15 text-rose-400 border-rose-500/30'
-                            }`}
+                          }`}
                         >
                           {isCheckIn ? <Sun className="w-3 h-3 text-emerald-400" /> : <Moon className="w-3 h-3 text-rose-400" />}
                           {isCheckIn ? 'Check In' : 'Check Out'}
@@ -306,39 +296,29 @@ export const MainView: React.FC<MainViewProps> = ({
         </div>
       </div>
 
-      {/* Today's Schedule Card */}
+      {/* Session Protection Info Card */}
       <div className="rounded-2xl bg-slate-900/80 border border-slate-800/80 p-4 shadow-lg">
-        <h2 className="text-xs font-bold tracking-wider uppercase text-slate-400 flex items-center gap-1.5 mb-3">
-          <Clock className="w-3.5 h-3.5 text-sky-400" />
-          Today's Schedule
-        </h2>
-
-        <div className="flex flex-col gap-2 text-xs">
-          <div className="flex items-center justify-between py-1 border-b border-slate-800/50">
-            <span className="text-slate-400 font-medium">Check In</span>
-            <span className="font-semibold text-slate-200 font-mono">
-              {todaySchedule?.enabled ? todaySchedule.check_in : '—'}
-            </span>
+        <div className="flex items-center gap-2 mb-2 text-xs font-bold tracking-wider uppercase text-slate-400">
+          <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+          <span>Session Protection</span>
+        </div>
+        <div className="text-xs text-slate-400 space-y-1.5 leading-relaxed">
+          <div className="flex items-center justify-between">
+            <span>Odoo URL:</span>
+            <a
+              href={settings?.url || 'https://www.odoo.com/odoo'}
+              target="_blank"
+              rel="noreferrer"
+              className="text-sky-400 hover:text-sky-300 inline-flex items-center gap-1 font-mono text-[11px]"
+            >
+              <span>{settings?.url || 'https://www.odoo.com/odoo'}</span>
+              <ExternalLink className="w-3 h-3" />
+            </a>
           </div>
-
-          <div className="flex items-center justify-between py-1 border-b border-slate-800/50">
-            <span className="text-slate-400 font-medium">Check Out</span>
-            <span className="font-semibold text-slate-200 font-mono">
-              {todaySchedule?.enabled ? todaySchedule.check_out : '—'}
-            </span>
-          </div>
-
-          <div className="flex items-center justify-between py-1">
-            <span className="text-slate-400 font-medium flex items-center gap-1">
-              <Bell className="w-3 h-3 text-amber-400" />
-              Next Reminder
-            </span>
-            <span className="font-semibold text-sky-400 font-mono">
-              {settings?.scheduler_enabled === false
-                ? 'Disabled in settings'
-                : nextReminder
-                  ? `${nextReminder.type === 'check_in' ? 'Check In' : 'Check Out'} at ${formatTimeStr(nextReminder.at)}`
-                  : 'None scheduled'}
+          <div className="flex items-center justify-between">
+            <span>Logout Prompt Threshold:</span>
+            <span className="text-slate-200 font-mono font-medium">
+              {settings?.log_threshold_minutes ?? 3} min inactivity
             </span>
           </div>
         </div>

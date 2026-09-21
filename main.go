@@ -57,15 +57,15 @@ func main() {
 		},
 	})
 
-	// ── Window 1: Check-In Window ───────────────────────────────────────────
+	// ── Window 1: Check-In Window (Full Screen / Large Modal on Login) ─────
 	checkinWin := app.Window.NewWithOptions(application.WebviewWindowOptions{
 		Title:            "TimeCheck - Check In",
 		Name:             "checkin",
-		Width:            420,
-		Height:           260,
-		MinWidth:         380,
-		MinHeight:        240,
-		DisableResize:    true,
+		Width:            900,
+		Height:           650,
+		MinWidth:         400,
+		MinHeight:        300,
+		DisableResize:    false,
 		Hidden:           true,
 		URL:              "/?window=checkin",
 		BackgroundColour: application.NewRGBA(15, 23, 42, 255),

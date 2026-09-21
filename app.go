@@ -15,9 +15,7 @@ import (
 	"time-check/internal/attendance"
 	"time-check/internal/launcher"
 	"time-check/internal/lifecycle"
-	"time-check/internal/notification"
 	"time-check/internal/schedule"
-	"time-check/internal/scheduler"
 	"time-check/internal/storage"
 )
 
@@ -91,13 +89,9 @@ type AppService struct {
 	store       *storage.FileStore
 	settings    schedule.Settings
 	attendance  *attendance.Manager
-	sched       *scheduler.Scheduler
 	lifecycle   *lifecycle.LinuxLifecycleManager
 	urlLauncher launcher.URLLauncher
 	wailsApp    *application.App
-
-	checkInSnoozeTimer  *time.Timer
-	checkOutSnoozeTimer *time.Timer
 
 	mu sync.Mutex
 }
@@ -146,24 +140,7 @@ func (a *AppService) Startup(app *application.App) error {
 	// URL Launcher
 	a.urlLauncher = launcher.NewXDGLauncher()
 
-	// Notifier
-	notifier := notification.NewBestNotifier()
-
-	// Scheduler
-	realTimer := scheduler.RealTimer{}
 	emitter := &showWindowEmitter{svc: a, delegate: a.emitter}
-	s := scheduler.NewScheduler(
-		scheduler.RealClock{},
-		realTimer,
-		notifier,
-		emitter,
-		att,
-		store,
-	)
-	a.sched = s
-	if a.settings.SchedulerEnabled {
-		s.Start(a.settings.Schedule)
-	}
 
 	// Lifecycle (login / logout / shutdown interception via D-Bus logind and session managers)
 	lm := lifecycle.NewLinuxLifecycleManager(emitter)
@@ -238,22 +215,9 @@ func (e *showWindowEmitter) Emit(name string, data ...interface{}) {
 
 // Shutdown is called by Wails when app.Quit() is invoked.
 func (a *AppService) Shutdown() {
-	if a.sched != nil {
-		a.sched.Stop()
-	}
 	if a.lifecycle != nil {
 		a.lifecycle.Stop()
 	}
-	a.mu.Lock()
-	if a.checkInSnoozeTimer != nil {
-		a.checkInSnoozeTimer.Stop()
-		a.checkInSnoozeTimer = nil
-	}
-	if a.checkOutSnoozeTimer != nil {
-		a.checkOutSnoozeTimer.Stop()
-		a.checkOutSnoozeTimer = nil
-	}
-	a.mu.Unlock()
 }
 
 // midnightResetLoop sleeps until midnight to roll over the day and notify the UI (for 24/7 always-on machines).
@@ -295,15 +259,6 @@ func (a *AppService) loadSettings() {
 	if s.LogThresholdMinutes <= 0 {
 		s.LogThresholdMinutes = 3
 	}
-	if s.CheckOutWindowBeforeMinutes < 0 {
-		s.CheckOutWindowBeforeMinutes = 0
-	}
-	if s.CheckOutWindowAfterMinutes <= 0 {
-		s.CheckOutWindowAfterMinutes = 30
-	}
-	if s.SnoozeDurationMinutes <= 0 {
-		s.SnoozeDurationMinutes = 10
-	}
 	a.settings = s
 }
 
@@ -338,9 +293,6 @@ func (a *AppService) GetSettings() schedule.Settings {
 
 // SaveSettings persists all settings and recalculates the reminder schedule.
 func (a *AppService) SaveSettings(s schedule.Settings) error {
-	if err := s.Schedule.Validate(); err != nil {
-		return fmt.Errorf("invalid schedule: %w", err)
-	}
 	if s.URL != "" {
 		if err := launcher.ValidateURL(s.URL); err != nil {
 			return fmt.Errorf("attendance URL: %w", err)
@@ -348,15 +300,6 @@ func (a *AppService) SaveSettings(s schedule.Settings) error {
 	}
 	if s.LogThresholdMinutes <= 0 {
 		s.LogThresholdMinutes = 3
-	}
-	if s.CheckOutWindowBeforeMinutes < 0 {
-		s.CheckOutWindowBeforeMinutes = 0
-	}
-	if s.CheckOutWindowAfterMinutes <= 0 {
-		s.CheckOutWindowAfterMinutes = 30
-	}
-	if s.SnoozeDurationMinutes <= 0 {
-		s.SnoozeDurationMinutes = 10
 	}
 	if err := a.store.WriteJSON(settingsFile, s); err != nil {
 		return err
@@ -376,33 +319,17 @@ func (a *AppService) SaveSettings(s schedule.Settings) error {
 		}
 	}
 
-	// Recalculate scheduler.
-	if s.SchedulerEnabled {
-		a.sched.UpdateSchedule(s.Schedule)
-	} else {
-		a.sched.Stop()
-	}
+
 	if a.lifecycle != nil {
 		a.lifecycle.ArmInhibitors()
 	}
-	a.emitter.Emit("schedule-changed", s.Schedule)
 	return nil
 }
 
 
-// GetSchedule returns the current schedule.
-func (a *AppService) GetSchedule() schedule.Schedule {
-	return a.settings.Schedule
-}
 
-// SaveSchedule updates only the schedule portion of settings.
-func (a *AppService) SaveSchedule(s schedule.Schedule) error {
-	return a.SaveSettings(schedule.Settings{
-		Schedule:  s,
-		URL:       a.settings.URL,
-		Autostart: a.settings.Autostart,
-	})
-}
+
+
 
 // GetURL returns the configured attendance URL.
 func (a *AppService) GetURL() string {
@@ -412,7 +339,6 @@ func (a *AppService) GetURL() string {
 // SaveURL updates only the URL portion of settings.
 func (a *AppService) SaveURL(url string) error {
 	return a.SaveSettings(schedule.Settings{
-		Schedule:  a.settings.Schedule,
 		URL:       url,
 		Autostart: a.settings.Autostart,
 	})
@@ -423,11 +349,10 @@ func (a *AppService) GetTodayStatus() attendance.DailyStatus {
 	return a.attendance.GetStatus()
 }
 
-// ShowCheckInWindow displays the check-in dialog window.
+// ShowCheckInWindow displays the full-screen check-in window on login.
 func (a *AppService) ShowCheckInWindow() {
 	if a.checkinWin != nil {
-		a.checkinWin.SetSize(420, 260)
-		a.checkinWin.Center()
+		a.checkinWin.Fullscreen()
 		a.checkinWin.SetAlwaysOnTop(true)
 		a.checkinWin.Show()
 		a.checkinWin.UnMinimise()
@@ -437,10 +362,11 @@ func (a *AppService) ShowCheckInWindow() {
 	}
 }
 
-// HideCheckInWindow hides the check-in window.
+// HideCheckInWindow hides the check-in window and exits fullscreen.
 func (a *AppService) HideCheckInWindow() {
 	if a.checkinWin != nil {
 		a.checkinWin.SetAlwaysOnTop(false)
+		a.checkinWin.UnFullscreen()
 		a.checkinWin.Hide()
 	}
 }
@@ -498,12 +424,7 @@ func (a *AppService) HideWindow() {
 
 // CheckIn records check-in and opens the configured URL.
 func (a *AppService) CheckIn() CheckResult {
-	a.mu.Lock()
-	if a.checkInSnoozeTimer != nil {
-		a.checkInSnoozeTimer.Stop()
-		a.checkInSnoozeTimer = nil
-	}
-	a.mu.Unlock()
+
 
 	if err := a.attendance.CheckIn(); err != nil {
 		if errors.Is(err, attendance.ErrAlreadyCheckedIn) {
@@ -536,13 +457,6 @@ func (a *AppService) CheckIn() CheckResult {
 
 // CheckOut records check-out and opens the configured URL.
 func (a *AppService) CheckOut() CheckResult {
-	a.mu.Lock()
-	if a.checkOutSnoozeTimer != nil {
-		a.checkOutSnoozeTimer.Stop()
-		a.checkOutSnoozeTimer = nil
-	}
-	a.mu.Unlock()
-
 	if err := a.attendance.CheckOut(); err != nil {
 		if errors.Is(err, attendance.ErrAlreadyCheckedOut) || errors.Is(err, attendance.ErrNotCheckedIn) {
 			_ = a.attendance.ForceCheckOut()
@@ -570,13 +484,6 @@ func (a *AppService) CheckOut() CheckResult {
 	return CheckResult{OK: true}
 }
 
-// GetNextReminder returns the next scheduled reminder, or nil if none or if scheduler is disabled.
-func (a *AppService) GetNextReminder() *scheduler.NextReminder {
-	if !a.settings.SchedulerEnabled {
-		return nil
-	}
-	return a.sched.GetNextReminder()
-}
 
 // LoginCheckIn is called from the login check-in reminder dialog.
 func (a *AppService) LoginCheckIn() CheckResult {
@@ -588,62 +495,12 @@ func (a *AppService) LoginCheckIn() CheckResult {
 	return res
 }
 
-// LoginContinue is called from the login reminder dialog's Skip button.
+// LoginContinue is called from the login reminder dialog's Skip / Continue button.
 func (a *AppService) LoginContinue() {
-	a.mu.Lock()
-	if a.checkInSnoozeTimer != nil {
-		a.checkInSnoozeTimer.Stop()
-		a.checkInSnoozeTimer = nil
-	}
-	a.mu.Unlock()
-
 	if a.lifecycle != nil {
 		a.lifecycle.UserLoginContinue()
 	}
 	a.HideCheckInWindow()
-}
-
-// SnoozeCheckIn snoozes the check-in reminder for the configured snooze duration.
-func (a *AppService) SnoozeCheckIn() {
-	if a.lifecycle != nil {
-		a.lifecycle.UserLoginContinue()
-	}
-	a.HideCheckInWindow()
-
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	if a.checkInSnoozeTimer != nil {
-		a.checkInSnoozeTimer.Stop()
-	}
-	snoozeDuration := a.settings.GetSnoozeDuration()
-	a.checkInSnoozeTimer = time.AfterFunc(snoozeDuration, func() {
-		if a.attendance != nil && !a.attendance.IsCheckedIn() {
-			a.ShowCheckInWindow()
-			a.emitter.Emit("reminder-triggered", map[string]string{"type": "check_in"})
-		}
-	})
-}
-
-// SnoozeCheckOut snoozes the check-out reminder for the configured snooze duration.
-// If triggered from logout/poweroff interception, it cancels the shutdown to keep the system active.
-func (a *AppService) SnoozeCheckOut() {
-	if a.lifecycle != nil {
-		a.lifecycle.AbortAction()
-	}
-	a.HideCheckOutWindow()
-
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	if a.checkOutSnoozeTimer != nil {
-		a.checkOutSnoozeTimer.Stop()
-	}
-	snoozeDuration := a.settings.GetSnoozeDuration()
-	a.checkOutSnoozeTimer = time.AfterFunc(snoozeDuration, func() {
-		if a.attendance != nil && !a.attendance.IsCheckedOut() {
-			a.ShowCheckOutWindow("reminder")
-			a.emitter.Emit("reminder-triggered", map[string]string{"type": "check_out"})
-		}
-	})
 }
 
 // AbortAction cancels any pending shutdown/logout via "shutdown -c" and hides the checkout window, keeping the system ON.
@@ -692,13 +549,6 @@ func (a *AppService) CancelIfCheckingOut() {
 
 // ShutdownSkip tells the extension to proceed with the original action or dismisses reminder.
 func (a *AppService) ShutdownSkip() {
-	a.mu.Lock()
-	if a.checkOutSnoozeTimer != nil {
-		a.checkOutSnoozeTimer.Stop()
-		a.checkOutSnoozeTimer = nil
-	}
-	a.mu.Unlock()
-
 	a.ProceedAction()
 }
 

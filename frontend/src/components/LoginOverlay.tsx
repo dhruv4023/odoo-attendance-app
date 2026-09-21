@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import * as AppService from '../../bindings/time-check/appservice.js';
-import { Sun, CheckCircle2, ArrowRight, Clock, X } from 'lucide-react';
+import { Sun, CheckCircle2, ArrowRight, ExternalLink, ShieldCheck } from 'lucide-react';
 
 interface LoginOverlayProps {
   isOpen: boolean;
@@ -9,6 +9,32 @@ interface LoginOverlayProps {
 
 export const LoginOverlay: React.FC<LoginOverlayProps> = ({ isOpen, onClose }) => {
   const [loading, setLoading] = useState(false);
+  const [currentTime, setCurrentTime] = useState<string>('');
+  const [currentDate, setCurrentDate] = useState<string>('');
+
+  useEffect(() => {
+    const updateTime = () => {
+      const now = new Date();
+      setCurrentTime(
+        now.toLocaleTimeString(undefined, {
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+        })
+      );
+      setCurrentDate(
+        now.toLocaleDateString(undefined, {
+          weekday: 'long',
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric',
+        })
+      );
+    };
+    updateTime();
+    const interval = setInterval(updateTime, 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   const handleCheckIn = useCallback(async () => {
     if (loading) return;
@@ -23,20 +49,7 @@ export const LoginOverlay: React.FC<LoginOverlayProps> = ({ isOpen, onClose }) =
     }
   }, [loading, onClose]);
 
-  const handleSnooze = useCallback(async () => {
-    if (loading) return;
-    setLoading(true);
-    try {
-      await AppService.SnoozeCheckIn();
-    } catch (e) {
-      console.error('SnoozeCheckIn error:', e);
-    } finally {
-      setLoading(false);
-      onClose();
-    }
-  }, [loading, onClose]);
-
-  const handleSkip = useCallback(async () => {
+  const handleContinue = useCallback(async () => {
     if (loading) return;
     setLoading(true);
     try {
@@ -55,7 +68,7 @@ export const LoginOverlay: React.FC<LoginOverlayProps> = ({ isOpen, onClose }) =
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.preventDefault();
-        handleSkip();
+        handleContinue();
       } else if (e.key === 'Enter') {
         e.preventDefault();
         handleCheckIn();
@@ -64,63 +77,68 @@ export const LoginOverlay: React.FC<LoginOverlayProps> = ({ isOpen, onClose }) =
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, handleCheckIn, handleSkip]);
+  }, [isOpen, handleCheckIn, handleContinue]);
 
   if (!isOpen) return null;
 
   return (
-    <div className="flex-1 flex items-center justify-center p-4 z-20">
-      <div className="relative w-full max-w-sm rounded-2xl bg-slate-900/90 border border-slate-700/80 p-5 shadow-2xl flex flex-col items-center text-center animate-slide-up">
-        {/* Close Button ('X' skips) */}
-        <button
-          type="button"
-          onClick={handleSkip}
-          disabled={loading}
-          aria-label="Close reminder"
-          className="absolute top-3.5 right-3.5 p-1 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors cursor-pointer"
-        >
-          <X className="w-4 h-4" />
-        </button>
+    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center p-6 bg-slate-950/95 backdrop-blur-xl select-none">
+      {/* Dynamic Ambient Background Glows */}
+      <div className="absolute top-1/4 left-1/3 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-emerald-500/15 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute bottom-1/4 right-1/3 translate-x-1/2 translate-y-1/2 w-96 h-96 bg-sky-500/15 rounded-full blur-3xl pointer-events-none" />
 
-        <div className="w-12 h-12 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400 mb-3 shadow-inner">
-          <Sun className="w-6 h-6 animate-pulse-subtle" />
+      <div className="relative w-full max-w-lg rounded-3xl bg-slate-900/90 border border-slate-700/80 p-8 shadow-2xl flex flex-col items-center text-center animate-slide-up">
+        {/* Top Icon Badge */}
+        <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-teal-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 mb-5 shadow-lg shadow-emerald-950/50">
+          <Sun className="w-8 h-8 animate-pulse-subtle" />
         </div>
 
-        <h2 className="text-lg font-bold tracking-tight text-white mb-1.5">
-          Check In Reminder
-        </h2>
-        <p className="text-xs text-slate-400 leading-relaxed mb-5">
-          No attendance log was recorded recently. Would you like to check in now?
+        {/* Live Clock & Date */}
+        <div className="mb-2">
+          <div className="text-3xl font-extrabold tracking-tight text-white font-mono">
+            {currentTime || '--:--:--'}
+          </div>
+          <div className="text-xs font-medium text-emerald-400/90 tracking-wide uppercase mt-1">
+            {currentDate}
+          </div>
+        </div>
+
+        {/* Headline */}
+        <h1 className="text-2xl font-bold text-slate-100 mt-4 mb-2">
+          Welcome! Time to Check In
+        </h1>
+        <p className="text-sm text-slate-400 max-w-sm leading-relaxed mb-8">
+          Start your work session by recording your attendance. Clicking Check In will open your Odoo attendance dashboard.
         </p>
 
-        <div className="flex gap-2 w-full">
+        {/* Action Buttons */}
+        <div className="flex flex-col sm:flex-row gap-3 w-full">
           <button
             type="button"
             onClick={handleCheckIn}
             disabled={loading}
-            className="flex-1 inline-flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-xl font-semibold text-xs bg-emerald-600 hover:bg-emerald-500 active:scale-95 disabled:opacity-50 text-white shadow-lg shadow-emerald-950/40 transition-all cursor-pointer"
+            className="flex-1 inline-flex items-center justify-center gap-2.5 py-3.5 px-6 rounded-2xl font-bold text-sm bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 active:scale-98 disabled:opacity-50 text-white shadow-xl shadow-emerald-950/60 transition-all cursor-pointer border border-emerald-400/20"
           >
-            <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
-            <span>{loading ? 'Checking in…' : 'Check In'}</span>
+            <CheckCircle2 className="w-5 h-5 shrink-0 text-emerald-200" />
+            <span>{loading ? 'Checking in…' : 'Check In to Odoo'}</span>
+            <ExternalLink className="w-4 h-4 opacity-70 ml-0.5" />
           </button>
+
           <button
             type="button"
-            onClick={handleSnooze}
+            onClick={handleContinue}
             disabled={loading}
-            className="inline-flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl font-semibold text-xs bg-amber-500/15 hover:bg-amber-500/25 active:scale-95 disabled:opacity-50 text-amber-300 border border-amber-500/30 transition-all cursor-pointer"
+            className="inline-flex items-center justify-center gap-2 py-3.5 px-5 rounded-2xl font-semibold text-sm bg-slate-800/90 hover:bg-slate-700/90 active:scale-98 disabled:opacity-50 text-slate-300 border border-slate-700 transition-all cursor-pointer"
           >
-            <Clock className="w-3.5 h-3.5 shrink-0" />
-            <span>Snooze</span>
+            <span>Continue to Desktop</span>
+            <ArrowRight className="w-4 h-4 shrink-0 text-slate-400" />
           </button>
-          <button
-            type="button"
-            onClick={handleSkip}
-            disabled={loading}
-            className="inline-flex items-center justify-center gap-1 py-2 px-2.5 rounded-xl font-semibold text-xs bg-slate-800 hover:bg-slate-700 active:scale-95 disabled:opacity-50 text-slate-300 border border-slate-700 transition-all cursor-pointer"
-          >
-            <span>Skip</span>
-            <ArrowRight className="w-3 h-3 shrink-0" />
-          </button>
+        </div>
+
+        {/* Bottom Security Note */}
+        <div className="flex items-center gap-1.5 text-[11px] text-slate-500 mt-6">
+          <ShieldCheck className="w-3.5 h-3.5 text-slate-500" />
+          <span>Attendance check-out will be requested automatically on logout / shutdown</span>
         </div>
       </div>
     </div>
