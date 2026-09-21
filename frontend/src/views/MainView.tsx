@@ -334,9 +334,11 @@ export const MainView: React.FC<MainViewProps> = ({
               Next Reminder
             </span>
             <span className="font-semibold text-sky-400 font-mono">
-              {nextReminder
-                ? `${nextReminder.type === 'check_in' ? 'Check In' : 'Check Out'} at ${formatTimeStr(nextReminder.at)}`
-                : 'None scheduled'}
+              {settings?.scheduler_enabled === false
+                ? 'Disabled in settings'
+                : nextReminder
+                  ? `${nextReminder.type === 'check_in' ? 'Check In' : 'Check Out'} at ${formatTimeStr(nextReminder.at)}`
+                  : 'None scheduled'}
             </span>
           </div>
         </div>

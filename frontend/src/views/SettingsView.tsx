@@ -9,7 +9,8 @@ import {
   Clock,
   Save,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  Bell
 } from 'lucide-react';
 
 interface SettingsViewProps {
@@ -41,6 +42,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onBack }) => {
   const [schedule, setSchedule] = useState<ScheduleSettings>(DEFAULT_SCHEDULE);
   const [url, setUrl] = useState('');
   const [autostart, setAutostart] = useState(false);
+  const [schedulerEnabled, setSchedulerEnabled] = useState(true);
   const [logThresholdMinutes, setLogThresholdMinutes] = useState(3);
   const [checkOutWindowBeforeMinutes, setCheckOutWindowBeforeMinutes] = useState(0);
   const [checkOutWindowAfterMinutes, setCheckOutWindowAfterMinutes] = useState(30);
@@ -62,6 +64,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onBack }) => {
         }
         if (setts?.autostart !== undefined) {
           setAutostart(Boolean(setts.autostart));
+        }
+        if (setts?.scheduler_enabled !== undefined) {
+          setSchedulerEnabled(Boolean(setts.scheduler_enabled));
         }
         if (setts?.log_threshold_minutes !== undefined) {
           setLogThresholdMinutes(setts.log_threshold_minutes);
@@ -169,8 +174,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onBack }) => {
         schedule,
         url: url.trim(),
         autostart,
+        scheduler_enabled: schedulerEnabled,
         log_threshold_minutes: Number(logThresholdMinutes) || 3,
-        check_out_window_before_minutes: Number(checkOutWindowBeforeMinutes) ?? 30,
+        check_out_window_before_minutes: Number(checkOutWindowBeforeMinutes) ?? 0,
         check_out_window_after_minutes: Number(checkOutWindowAfterMinutes) ?? 30,
       });
       showMsg('Settings saved successfully!');
@@ -381,6 +387,38 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onBack }) => {
           </p>
           {errors.url && <p className="text-[11px] text-rose-400 mt-1">{errors.url}</p>}
         </div>
+      </div>
+
+      {/* Scheduled Desktop Notifications (Scheduler) Card */}
+      <div className="rounded-2xl bg-slate-900/80 border border-slate-800/80 p-4 shadow-lg">
+        <h2 className="text-xs font-bold tracking-wider uppercase text-slate-400 flex items-center gap-1.5 mb-3">
+          <Bell className="w-3.5 h-3.5 text-sky-400" />
+          Scheduled Desktop Notifications
+        </h2>
+
+        <label className="flex items-center gap-2.5 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={schedulerEnabled}
+            onChange={e => setSchedulerEnabled(e.target.checked)}
+            className="sr-only"
+          />
+          <div
+            className={`w-8 h-4.5 rounded-full transition-colors relative ${schedulerEnabled ? 'bg-sky-500' : 'bg-slate-700'
+              }`}
+          >
+            <div
+              className={`w-3.5 h-3.5 rounded-full bg-white transition-transform absolute top-0.5 left-0.5 ${schedulerEnabled ? 'translate-x-3.5' : 'translate-x-0'
+                }`}
+            />
+          </div>
+          <span className="text-xs font-semibold text-slate-200">
+            Enable scheduled check-in / check-out notifications
+          </span>
+        </label>
+        <p className="text-[11px] text-slate-500 mt-2 pl-10">
+          Sends system desktop notifications at scheduled check-in and check-out times. Turn off if you only want popup reminders during login / logout / shutdown.
+        </p>
       </div>
 
       {/* Application Settings Card */}

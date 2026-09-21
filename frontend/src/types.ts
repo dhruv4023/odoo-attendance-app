@@ -25,6 +25,7 @@ export interface Settings {
   schedule: ScheduleSettings;
   url?: string;
   autostart: boolean;
+  scheduler_enabled?: boolean;
   log_threshold_minutes?: number;
   check_out_window_before_minutes?: number;
   check_out_window_after_minutes?: number;

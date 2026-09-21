@@ -14,8 +14,8 @@ permissions:
 
 jobs:
   build:
-    fail-fast: false
     strategy:
+      fail-fast: false
       matrix:
         build:
           - name: 'timecheck-linux-amd64'

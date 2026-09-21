@@ -45,6 +45,7 @@ type Settings struct {
 	Schedule                    Schedule `json:"schedule"`
 	URL                         string   `json:"url"`
 	Autostart                   bool     `json:"autostart"`
+	SchedulerEnabled            bool     `json:"scheduler_enabled"`
 	LogThresholdMinutes         int      `json:"log_threshold_minutes"`
 	CheckOutWindowBeforeMinutes int      `json:"check_out_window_before_minutes"`
 	CheckOutWindowAfterMinutes  int      `json:"check_out_window_after_minutes"`
@@ -60,21 +61,21 @@ func (s Settings) GetLogThreshold() time.Duration {
 
 // GetCheckOutWindowBefore returns the duration before check-out time when check-out reminders should start.
 func (s Settings) GetCheckOutWindowBefore() time.Duration {
-	if s.CheckOutWindowBeforeMinutes <= 0 {
-		return 30 * time.Minute
+	if s.CheckOutWindowBeforeMinutes < 0 {
+		return 0
 	}
 	return time.Duration(s.CheckOutWindowBeforeMinutes) * time.Minute
 }
 
 // GetCheckOutWindowAfter returns the duration after check-out time when check-out reminders should end.
 func (s Settings) GetCheckOutWindowAfter() time.Duration {
-	if s.CheckOutWindowAfterMinutes <= 0 {
-		return 30 * time.Minute
+	if s.CheckOutWindowAfterMinutes < 0 {
+		return 0
 	}
 	return time.Duration(s.CheckOutWindowAfterMinutes) * time.Minute
 }
 
-// DefaultSettings returns sensible defaults (Mon–Fri 10:00–19:00 with autostart enabled and ±30 min checkout window).
+// DefaultSettings returns sensible defaults (Mon–Fri 10:00–19:00 with autostart and scheduler enabled).
 func DefaultSettings() Settings {
 	day := DaySchedule{Enabled: true, CheckIn: "10:00", CheckOut: "19:00"}
 	return Settings{
@@ -89,6 +90,7 @@ func DefaultSettings() Settings {
 		},
 		URL:                         "https://example.com/attendance",
 		Autostart:                   false,
+		SchedulerEnabled:            true,
 		LogThresholdMinutes:         3,
 		CheckOutWindowBeforeMinutes: 0,
 		CheckOutWindowAfterMinutes:  30,

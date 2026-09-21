@@ -157,7 +157,9 @@ func (a *AppService) Startup(app *application.App) error {
 		store,
 	)
 	a.sched = s
-	s.Start(a.settings.Schedule)
+	if a.settings.SchedulerEnabled {
+		s.Start(a.settings.Schedule)
+	}
 
 	// Lifecycle (login / logout / shutdown interception via D-Bus logind and session managers)
 	lm := lifecycle.NewLinuxLifecycleManager(
@@ -278,7 +280,7 @@ func (a *AppService) loadSettings() {
 	if s.LogThresholdMinutes <= 0 {
 		s.LogThresholdMinutes = 3
 	}
-	if s.CheckOutWindowBeforeMinutes <= 0 {
+	if s.CheckOutWindowBeforeMinutes < 0 {
 		s.CheckOutWindowBeforeMinutes = 0
 	}
 	if s.CheckOutWindowAfterMinutes <= 0 {
@@ -329,7 +331,7 @@ func (a *AppService) SaveSettings(s schedule.Settings) error {
 	if s.LogThresholdMinutes <= 0 {
 		s.LogThresholdMinutes = 3
 	}
-	if s.CheckOutWindowBeforeMinutes <= 0 {
+	if s.CheckOutWindowBeforeMinutes < 0 {
 		s.CheckOutWindowBeforeMinutes = 0
 	}
 	if s.CheckOutWindowAfterMinutes <= 0 {
@@ -354,7 +356,11 @@ func (a *AppService) SaveSettings(s schedule.Settings) error {
 	}
 
 	// Recalculate scheduler.
-	a.sched.UpdateSchedule(s.Schedule)
+	if s.SchedulerEnabled {
+		a.sched.UpdateSchedule(s.Schedule)
+	} else {
+		a.sched.Stop()
+	}
 	if a.lifecycle != nil {
 		a.lifecycle.ArmInhibitors()
 	}
@@ -529,8 +535,11 @@ func (a *AppService) CheckOut() CheckResult {
 	return CheckResult{OK: true}
 }
 
-// GetNextReminder returns the next scheduled reminder, or nil if none.
+// GetNextReminder returns the next scheduled reminder, or nil if none or if scheduler is disabled.
 func (a *AppService) GetNextReminder() *scheduler.NextReminder {
+	if !a.settings.SchedulerEnabled {
+		return nil
+	}
 	return a.sched.GetNextReminder()
 }
 

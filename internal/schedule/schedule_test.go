@@ -351,8 +351,11 @@ func TestShouldPromptCheckOut(t *testing.T) {
 
 func TestSettings_CheckOutWindowDefaults(t *testing.T) {
 	s := schedule.DefaultSettings()
-	if s.GetCheckOutWindowBefore() != 30*time.Minute {
-		t.Errorf("expected default before window to be 30 min, got %v", s.GetCheckOutWindowBefore())
+	if !s.SchedulerEnabled {
+		t.Errorf("expected default SchedulerEnabled to be true")
+	}
+	if s.GetCheckOutWindowBefore() != 0*time.Minute {
+		t.Errorf("expected default before window to be 0 min, got %v", s.GetCheckOutWindowBefore())
 	}
 	if s.GetCheckOutWindowAfter() != 30*time.Minute {
 		t.Errorf("expected default after window to be 30 min, got %v", s.GetCheckOutWindowAfter())
