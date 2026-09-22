@@ -1,6 +1,6 @@
 {
-  "uuid": "time-check-attendance",
-  "name": "TimeCheck Attendance Interceptor",
+  "uuid": "odoo-attendance-app-attendance",
+  "name": "Odoo Attendance App Interceptor",
   "description": "Intercepts GNOME Shell logout, power off, and restart actions to show attendance check-out reminder",
   "shell-version": [
     "45",

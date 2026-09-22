@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import * as AppService from '../../bindings/time-check/appservice.js';
+import * as AppService from '../../bindings/odoo-attendance-app/appservice.js';
 import { Sun, CheckCircle2, ArrowRight, ExternalLink, ShieldCheck } from 'lucide-react';
 
 interface LoginOverlayProps {
@@ -82,15 +82,15 @@ export const LoginOverlay: React.FC<LoginOverlayProps> = ({ isOpen, onClose }) =
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center p-6 bg-slate-950/95 backdrop-blur-xl select-none">
+    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center p-6 bg-[#141018]/95 backdrop-blur-xl select-none">
       {/* Dynamic Ambient Background Glows */}
-      <div className="absolute top-1/4 left-1/3 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-emerald-500/15 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute bottom-1/4 right-1/3 translate-x-1/2 translate-y-1/2 w-96 h-96 bg-sky-500/15 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute top-1/4 left-1/3 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-[#6b3e66]/25 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute bottom-1/4 right-1/3 translate-x-1/2 translate-y-1/2 w-96 h-96 bg-[#7b4775]/20 rounded-full blur-3xl pointer-events-none" />
 
-      <div className="relative w-full max-w-lg rounded-3xl bg-slate-900/90 border border-slate-700/80 p-8 shadow-2xl flex flex-col items-center text-center animate-slide-up">
+      <div className="relative w-full max-w-lg rounded-3xl bg-[#251f2e]/95 border border-[#3d3248] p-8 shadow-2xl flex flex-col items-center text-center animate-slide-up">
         {/* Top Icon Badge */}
-        <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-teal-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 mb-5 shadow-lg shadow-emerald-950/50">
-          <Sun className="w-8 h-8 animate-pulse-subtle" />
+        <div className="w-16 h-16 rounded-2xl bg-[#6b3e66]/30 border border-[#6b3e66]/50 flex items-center justify-center text-white mb-5 shadow-lg shadow-[rgba(129,91,125,0.3)]">
+          <Sun className="w-8 h-8 text-white animate-pulse-subtle" />
         </div>
 
         {/* Live Clock & Date */}
@@ -98,16 +98,16 @@ export const LoginOverlay: React.FC<LoginOverlayProps> = ({ isOpen, onClose }) =
           <div className="text-3xl font-extrabold tracking-tight text-white font-mono">
             {currentTime || '--:--:--'}
           </div>
-          <div className="text-xs font-medium text-emerald-400/90 tracking-wide uppercase mt-1">
+          <div className="text-xs font-medium text-[#d8b4d1] tracking-wide uppercase mt-1">
             {currentDate}
           </div>
         </div>
 
         {/* Headline */}
-        <h1 className="text-2xl font-bold text-slate-100 mt-4 mb-2">
+        <h1 className="text-2xl font-bold text-[#f8f7f9] mt-4 mb-2">
           Welcome! Time to Check In
         </h1>
-        <p className="text-sm text-slate-400 max-w-sm leading-relaxed mb-8">
+        <p className="text-sm text-[#a69eb0] max-w-sm leading-relaxed mb-8">
           Start your work session by recording your attendance. Clicking Check In will open your Odoo attendance dashboard.
         </p>
 
@@ -117,27 +117,27 @@ export const LoginOverlay: React.FC<LoginOverlayProps> = ({ isOpen, onClose }) =
             type="button"
             onClick={handleCheckIn}
             disabled={loading}
-            className="flex-1 inline-flex items-center justify-center gap-2.5 py-3.5 px-6 rounded-2xl font-bold text-sm bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 active:scale-98 disabled:opacity-50 text-white shadow-xl shadow-emerald-950/60 transition-all cursor-pointer border border-emerald-400/20"
+            className="flex-1 inline-flex items-center justify-center gap-2.5 py-3.5 px-6 rounded-2xl font-bold text-sm bg-[#6b3e66] hover:bg-[#7b4775] active:bg-[#8b5185] active:scale-98 disabled:opacity-50 text-white shadow-xl shadow-[rgba(129,91,125,0.4)] transition-all cursor-pointer border border-[#6b3e66] hover:border-[#7b4775] active:border-[#8b5185]"
           >
-            <CheckCircle2 className="w-5 h-5 shrink-0 text-emerald-200" />
+            <CheckCircle2 className="w-5 h-5 shrink-0 text-white" />
             <span>{loading ? 'Checking in…' : 'Check In to Odoo'}</span>
-            <ExternalLink className="w-4 h-4 opacity-70 ml-0.5" />
+            <ExternalLink className="w-4 h-4 opacity-80 ml-0.5" />
           </button>
 
           <button
             type="button"
             onClick={handleContinue}
             disabled={loading}
-            className="inline-flex items-center justify-center gap-2 py-3.5 px-5 rounded-2xl font-semibold text-sm bg-slate-800/90 hover:bg-slate-700/90 active:scale-98 disabled:opacity-50 text-slate-300 border border-slate-700 transition-all cursor-pointer"
+            className="inline-flex items-center justify-center gap-2 py-3.5 px-5 rounded-2xl font-semibold text-sm bg-[#342b3e] hover:bg-[#3f344c] active:scale-98 disabled:opacity-50 text-[#f8f7f9] border border-[#4a3c57] transition-all cursor-pointer"
           >
             <span>Continue to Desktop</span>
-            <ArrowRight className="w-4 h-4 shrink-0 text-slate-400" />
+            <ArrowRight className="w-4 h-4 shrink-0 text-[#cfc9d6]" />
           </button>
         </div>
 
         {/* Bottom Security Note */}
-        <div className="flex items-center gap-1.5 text-[11px] text-slate-500 mt-6">
-          <ShieldCheck className="w-3.5 h-3.5 text-slate-500" />
+        <div className="flex items-center gap-1.5 text-[11px] text-[#7e748c] mt-6">
+          <ShieldCheck className="w-3.5 h-3.5 text-[#8b5185]" />
           <span>Attendance check-out will be requested automatically on logout / shutdown</span>
         </div>
       </div>

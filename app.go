@@ -12,11 +12,11 @@ import (
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 
-	"time-check/internal/attendance"
-	"time-check/internal/launcher"
-	"time-check/internal/lifecycle"
-	"time-check/internal/schedule"
-	"time-check/internal/storage"
+	"odoo-attendance-app/internal/attendance"
+	"odoo-attendance-app/internal/launcher"
+	"odoo-attendance-app/internal/lifecycle"
+	"odoo-attendance-app/internal/schedule"
+	"odoo-attendance-app/internal/storage"
 )
 
 const settingsFile = "settings.json"
@@ -342,6 +342,7 @@ func (a *AppService) ShowWindow() {
 	a.mainWindow.Focus()
 	a.mainWindow.EmitEvent("status-changed", a.attendance.GetStatus())
 }
+
 // HideWindow hides the main application window.
 func (a *AppService) HideWindow() {
 	if a.mainWindow != nil {
@@ -365,8 +366,8 @@ func (a *AppService) HideCheckInWindow() {
 // ShowCheckOutWindow displays the 2nd window (checkout/logout dialog) maximised without size flash.
 func (a *AppService) ShowCheckOutWindow(action string) {
 	if a.checkoutWindow != nil {
-	a.checkoutWindow.Show()
-	a.checkoutWindow.Focus()
+		a.checkoutWindow.Show()
+		a.checkoutWindow.Focus()
 		a.checkoutWindow.EmitEvent("checkout-requested", map[string]string{"action": action})
 	}
 }

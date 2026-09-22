@@ -1,4 +1,4 @@
-module time-check
+module odoo-attendance-app
 
 go 1.25.0
 

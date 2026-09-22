@@ -1,7 +1,7 @@
 version: '3'
 
 vars:
-  APP_NAME: "timecheck"
+  APP_NAME: "odoo-attendance-app"
   BIN_DIR: "bin"
   PACKAGE_MANAGER: '{{.PACKAGE_MANAGER | default "npm"}}'
   VITE_PORT: '{{.WAILS_VITE_PORT | default 9245}}'
@@ -22,7 +22,7 @@ tasks:
     cmds:
       - task: "linux:build"
         vars:
-          OUTPUT: "{{.BIN_DIR}}/timecheck-24"
+          OUTPUT: "{{.BIN_DIR}}/odoo-attendance-app-24"
 
   'build:ubuntu-22':
     summary: Builds the application for Ubuntu 22.04 / Debian 12 (GTK3)
@@ -30,7 +30,7 @@ tasks:
       - task: "linux:build"
         vars:
           EXTRA_TAGS: "gtk3"
-          OUTPUT: "{{.BIN_DIR}}/timecheck-22"
+          OUTPUT: "{{.BIN_DIR}}/odoo-attendance-app-22"
 
   package:
     summary: Packages a production build of the application for Linux

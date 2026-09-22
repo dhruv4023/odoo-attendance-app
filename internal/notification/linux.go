@@ -12,7 +12,7 @@ type LibnotifyNotifier struct{}
 
 func (n *LibnotifyNotifier) Notify(title, body string) error {
 	cmd := exec.Command("notify-send",
-		"--app-name=TimeCheck",
+		"--app-name=Odoo Attendance App",
 		"--urgency=normal",
 		"--expire-time=10000",
 		title,
@@ -34,7 +34,7 @@ func (n *DBusNotifier) Notify(title, body string) error {
 	}
 	obj := conn.Object("org.freedesktop.Notifications", "/org/freedesktop/Notifications")
 	call := obj.Call("org.freedesktop.Notifications.Notify", 0,
-		"TimeCheck",               // app_name
+		"Odoo Attendance App",      // app_name
 		uint32(0),                 // replaces_id
 		"",                        // app_icon
 		title,                     // summary

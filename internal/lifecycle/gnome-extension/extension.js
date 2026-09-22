@@ -1,15 +1,15 @@
-import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
+import { Extension } from 'resource:///org/gnome/shell/extensions/extension.js';
 import * as SystemActions from 'resource:///org/gnome/shell/misc/systemActions.js';
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 
-const DBUS_BUS_NAME = 'com.odoo.TimeCheck';
-const DBUS_OBJECT_PATH = '/com/odoo/TimeCheck';
-const DBUS_INTERFACE_NAME = 'com.odoo.TimeCheck';
+const DBUS_BUS_NAME = 'com.example.OdooAttendanceApp';
+const DBUS_OBJECT_PATH = '/com/example/OdooAttendanceApp';
+const DBUS_INTERFACE_NAME = 'com.example.OdooAttendanceApp';
 
 export default class TimeCheckAttendanceExtension extends Extension {
     enable() {
-        console.log('[TimeCheck Extension] Enabling attendance interceptor extension');
+        console.log('[Odoo Attendance App Extension] Enabling attendance interceptor extension');
         this._systemActions = SystemActions.getDefault();
         const proto = Object.getPrototypeOf(this._systemActions);
         this._proto = proto;
@@ -22,23 +22,23 @@ export default class TimeCheckAttendanceExtension extends Extension {
 
         const self = this;
 
-        const wrappedLogout = function() {
-            console.log('[TimeCheck Extension] Intercepted activateLogout');
+        const wrappedLogout = function () {
+            console.log('[Odoo Attendance App Extension] Intercepted activateLogout');
             self._handleAction('logout', () => self._origActivateLogout.call(this));
         };
 
-        const wrappedPowerOff = function() {
-            console.log('[TimeCheck Extension] Intercepted activatePowerOff');
+        const wrappedPowerOff = function () {
+            console.log('[Odoo Attendance App Extension] Intercepted activatePowerOff');
             self._handleAction('shutdown', () => self._origActivatePowerOff.call(this));
         };
 
-        const wrappedRestart = function() {
-            console.log('[TimeCheck Extension] Intercepted activateRestart');
+        const wrappedRestart = function () {
+            console.log('[Odoo Attendance App Extension] Intercepted activateRestart');
             self._handleAction('reboot', () => self._origActivateRestart.call(this));
         };
 
-        const wrappedAction = function(id) {
-            console.log(`[TimeCheck Extension] Intercepted activateAction(${id})`);
+        const wrappedAction = function (id) {
+            console.log(`[Odoo Attendance App Extension] Intercepted activateAction(${id})`);
             if (id === 'logout') {
                 self._handleAction('logout', () => self._origActivateLogout.call(this));
             } else if (id === 'power-off') {
@@ -60,11 +60,11 @@ export default class TimeCheckAttendanceExtension extends Extension {
         proto.activateRestart = wrappedRestart;
         proto.activateAction = wrappedAction;
 
-        console.log('[TimeCheck Extension] SystemActions successfully hooked');
+        console.log('[Odoo Attendance App Extension] SystemActions successfully hooked');
     }
 
     disable() {
-        console.log('[TimeCheck Extension] Disabling attendance interceptor extension');
+        console.log('[Odoo Attendance App Extension] Disabling attendance interceptor extension');
         if (this._proto) {
             if (this._origActivateLogout) this._proto.activateLogout = this._origActivateLogout;
             if (this._origActivatePowerOff) this._proto.activatePowerOff = this._origActivatePowerOff;
@@ -92,7 +92,7 @@ export default class TimeCheckAttendanceExtension extends Extension {
         }
 
         try {
-            console.log(`[TimeCheck Extension] Calling D-Bus RequestAction for ${action}...`);
+            console.log(`[Odoo Attendance App Extension] Calling D-Bus RequestAction for ${action}...`);
             const reply = await Gio.DBus.session.call(
                 DBUS_BUS_NAME,
                 DBUS_OBJECT_PATH,
@@ -106,7 +106,7 @@ export default class TimeCheckAttendanceExtension extends Extension {
             );
 
             const [decision] = reply.recursiveUnpack();
-            console.log(`[TimeCheck Extension] Decision for ${action}: ${decision}`);
+            console.log(`[Odoo Attendance App Extension] Decision for ${action}: ${decision}`);
 
             if (decision === 'proceed') {
                 this._isBypassing = true;
@@ -119,10 +119,10 @@ export default class TimeCheckAttendanceExtension extends Extension {
                     });
                 }
             } else {
-                console.log(`[TimeCheck Extension] Action ${action} cancelled by user checkout.`);
+                console.log(`[Odoo Attendance App Extension] Action ${action} cancelled by user checkout.`);
             }
         } catch (e) {
-            console.warn(`[TimeCheck Extension] D-Bus call to helper failed: ${e.message}. Proceeding with default action.`);
+            console.warn(`[Odoo Attendance App Extension] D-Bus call to helper failed: ${e.message}. Proceeding with default action.`);
             this._isBypassing = true;
             try {
                 proceedFn();

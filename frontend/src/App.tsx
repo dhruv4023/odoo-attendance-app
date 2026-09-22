@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Events } from '@wailsio/runtime';
-import * as AppService from '../bindings/time-check/appservice.js';
+import * as AppService from '../bindings/odoo-attendance-app/appservice.js';
 import { DailyStatus } from './types.js';
 import { MainView } from './views/MainView.tsx';
 import { ShutdownOverlay } from './components/ShutdownOverlay.tsx';
@@ -63,17 +63,17 @@ export const App: React.FC = () => {
 
   // Window 1: Main Application Window
   return (
-    <div className="flex flex-col h-full bg-slate-950 text-slate-100 select-none overflow-hidden relative">
-      {/* Background ambient lighting */}
-      <div className="absolute -top-24 -left-24 w-72 h-72 bg-sky-500/10 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute -bottom-24 -right-24 w-72 h-72 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
+    <div className="flex flex-col h-full bg-[#1c1722] text-[#f8f7f9] select-none overflow-hidden relative">
+      {/* Background ambient lighting with Odoo Brand colors */}
+      <div className="absolute -top-24 -left-24 w-80 h-80 bg-[#6b3e66]/25 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute -bottom-24 -right-24 w-80 h-80 bg-[#7b4775]/20 rounded-full blur-3xl pointer-events-none" />
 
       {/* Main Container */}
       <main className="flex-1 overflow-hidden z-10">
-          <MainView
-            status={status}
-            onRefresh={fetchStatus}
-          />
+        <MainView
+          status={status}
+          onRefresh={fetchStatus}
+        />
       </main>
     </div>
   );

@@ -1,13 +1,11 @@
 [Desktop Entry]
 Version=1.0
-Name=My Product
-Comment=A testapp application
+Name=Odoo Attendance App
+Comment=Check-in/check-out work schedule reminder
 # The Exec line includes %u to pass the URL to the application
-Exec=/usr/local/bin/testapp %u
+Exec=odoo-attendance-app %u
 Terminal=false
 Type=Application
-Icon=testapp
+Icon=odoo-attendance-app
 Categories=Utility;
-StartupWMClass=testapp
-
- 
+StartupWMClass=odoo-attendance-app

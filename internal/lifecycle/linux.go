@@ -13,9 +13,9 @@ import (
 )
 
 const (
-	DBusBusName       = "com.odoo.TimeCheck"
-	DBusObjectPath    = "/com/odoo/TimeCheck"
-	DBusInterfaceName = "com.odoo.TimeCheck"
+	DBusBusName       = "com.example.OdooAttendanceApp"
+	DBusObjectPath    = "/com/example/OdooAttendanceApp"
+	DBusInterfaceName = "com.example.OdooAttendanceApp"
 )
 
 // LinuxLifecycleManager manages Linux desktop session lifecycle interception.
@@ -90,7 +90,7 @@ func isGnomeSession() bool {
 		os.Getenv("GNOME_DESKTOP_SESSION_ID") != ""
 }
 
-// Start registers the session D-Bus service com.odoo.TimeCheck and starts listeners.
+// Start registers the session D-Bus service com.example.OdooAttendanceApp and starts listeners.
 func (m *LinuxLifecycleManager) Start() error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -102,7 +102,7 @@ func (m *LinuxLifecycleManager) Start() error {
 		}
 	}
 
-	// 2. Connect to Session D-Bus and export com.odoo.TimeCheck
+	// 2. Connect to Session D-Bus and export com.example.OdooAttendanceApp
 	sessConn, err := dbus.SessionBus()
 	if err != nil {
 		log.Printf("lifecycle: connect to session bus: %v", err)

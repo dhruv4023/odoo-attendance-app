@@ -12,7 +12,7 @@ import (
 	"strings"
 )
 
-const ExtensionUUID = "time-check-attendance"
+const ExtensionUUID = "odoo-attendance-app-attendance"
 
 //go:embed gnome-extension/modern/metadata.json
 var embeddedMetadataModern []byte

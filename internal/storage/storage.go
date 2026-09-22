@@ -27,8 +27,8 @@ type FileStore struct {
 	dir string
 }
 
-// NewFileStore creates a FileStore rooted at $XDG_CONFIG_HOME/time-check
-// (defaults to ~/.config/time-check).
+// NewFileStore creates a FileStore rooted at $XDG_CONFIG_HOME/odoo-attendance-app
+// (defaults to ~/.config/odoo-attendance-app).
 func NewFileStore() (*FileStore, error) {
 	base := os.Getenv("XDG_CONFIG_HOME")
 	if base == "" {
@@ -38,7 +38,7 @@ func NewFileStore() (*FileStore, error) {
 		}
 		base = filepath.Join(home, ".config")
 	}
-	dir := filepath.Join(base, "time-check")
+	dir := filepath.Join(base, "odoo-attendance-app")
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return nil, fmt.Errorf("storage: cannot create config dir %s: %w", dir, err)
 	}

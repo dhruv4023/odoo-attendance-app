@@ -1,9 +1,9 @@
 const { Gio, GLib } = imports.gi;
 const SystemActions = imports.misc.systemActions;
 
-const DBUS_BUS_NAME = 'com.odoo.TimeCheck';
-const DBUS_OBJECT_PATH = '/com/odoo/TimeCheck';
-const DBUS_INTERFACE_NAME = 'com.odoo.TimeCheck';
+const DBUS_BUS_NAME = 'com.example.OdooAttendanceApp';
+const DBUS_OBJECT_PATH = '/com/example/OdooAttendanceApp';
+const DBUS_INTERFACE_NAME = 'com.example.OdooAttendanceApp';
 
 let _systemActions = null;
 let _proto = null;
@@ -35,13 +35,13 @@ function _safeProceed(proceedFn) {
 
 function _handleAction(action, proceedFn) {
     if (_bypassDepth > 0 || Date.now() < _bypassUntil) {
-        log(`[TimeCheck Extension] Bypassing ${action} (already proceeding)`);
+        log(`[Odoo Attendance App Extension] Bypassing ${action} (already proceeding)`);
         if (typeof proceedFn === 'function') proceedFn();
         return;
     }
 
     try {
-        log(`[TimeCheck Extension] Intercepted ${action}; checking attendance via D-Bus...`);
+        log(`[Odoo Attendance App Extension] Intercepted ${action}; checking attendance via D-Bus...`);
         Gio.DBus.session.call(
             DBUS_BUS_NAME,
             DBUS_OBJECT_PATH,
@@ -56,42 +56,42 @@ function _handleAction(action, proceedFn) {
                 try {
                     const reply = conn.call_finish(res);
                     const [decision] = reply.recursiveUnpack();
-                    log(`[TimeCheck Extension] Decision for ${action}: ${decision}`);
+                    log(`[Odoo Attendance App Extension] Decision for ${action}: ${decision}`);
 
                     if (decision === 'proceed') {
                         _safeProceed(proceedFn);
                     } else {
-                        log(`[TimeCheck Extension] Action ${action} cancelled by user checkout.`);
+                        log(`[Odoo Attendance App Extension] Action ${action} cancelled by user checkout.`);
                     }
                 } catch (err) {
-                    // Fail-open: If TimeCheck is not running or D-Bus fails, always allow normal GNOME action
-                    log(`[TimeCheck Extension] D-Bus call finished with error: ${err.message}. Failing open.`);
+                    // Fail-open: If Odoo Attendance App is not running or D-Bus fails, always allow normal GNOME action
+                    log(`[Odoo Attendance App Extension] D-Bus call finished with error: ${err.message}. Failing open.`);
                     _safeProceed(proceedFn);
                 }
             }
         );
     } catch (e) {
         // Fail-open: If D-Bus call initiation fails, allow normal GNOME action
-        log(`[TimeCheck Extension] Failed to call D-Bus service: ${e.message}. Failing open.`);
+        log(`[Odoo Attendance App Extension] Failed to call D-Bus service: ${e.message}. Failing open.`);
         _safeProceed(proceedFn);
     }
 }
 
 function init() {
-    log('[TimeCheck Extension] Initializing attendance interceptor extension (GNOME 42-44)');
+    log('[Odoo Attendance App Extension] Initializing attendance interceptor extension (GNOME 42-44)');
 }
 
 function enable() {
     if (_enabled) {
-        log('[TimeCheck Extension] Already enabled, skipping');
+        log('[Odoo Attendance App Extension] Already enabled, skipping');
         return;
     }
 
-    log('[TimeCheck Extension] Enabling attendance interceptor extension');
+    log('[Odoo Attendance App Extension] Enabling attendance interceptor extension');
     try {
         _systemActions = SystemActions.getDefault();
         if (!_systemActions) {
-            log('[TimeCheck Extension] Could not get SystemActions default instance');
+            log('[Odoo Attendance App Extension] Could not get SystemActions default instance');
             return;
         }
 
@@ -131,29 +131,29 @@ function enable() {
         const effectiveRestart = getOriginal('activateRestart');
         const effectiveAction = getOriginal('activateAction');
 
-        const wrappedLogout = function() {
-            log('[TimeCheck Extension] Intercepted activateLogout');
+        const wrappedLogout = function () {
+            log('[Odoo Attendance App Extension] Intercepted activateLogout');
             _handleAction('logout', () => {
                 if (effectiveLogout) effectiveLogout.call(this);
             });
         };
 
-        const wrappedPowerOff = function() {
-            log('[TimeCheck Extension] Intercepted activatePowerOff');
+        const wrappedPowerOff = function () {
+            log('[Odoo Attendance App Extension] Intercepted activatePowerOff');
             _handleAction('shutdown', () => {
                 if (effectivePowerOff) effectivePowerOff.call(this);
             });
         };
 
-        const wrappedRestart = function() {
-            log('[TimeCheck Extension] Intercepted activateRestart');
+        const wrappedRestart = function () {
+            log('[Odoo Attendance App Extension] Intercepted activateRestart');
             _handleAction('reboot', () => {
                 if (effectiveRestart) effectiveRestart.call(this);
             });
         };
 
-        const wrappedAction = function(id) {
-            log(`[TimeCheck Extension] Intercepted activateAction(${id})`);
+        const wrappedAction = function (id) {
+            log(`[Odoo Attendance App Extension] Intercepted activateAction(${id})`);
             if (id === 'logout') {
                 _handleAction('logout', () => {
                     if (effectiveLogout) effectiveLogout.call(this);
@@ -188,15 +188,15 @@ function enable() {
         }
 
         _enabled = true;
-        log('[TimeCheck Extension] SystemActions successfully hooked');
+        log('[Odoo Attendance App Extension] SystemActions successfully hooked');
     } catch (err) {
-        log(`[TimeCheck Extension] Error enabling extension: ${err}. Rolling back.`);
+        log(`[Odoo Attendance App Extension] Error enabling extension: ${err}. Rolling back.`);
         disable();
     }
 }
 
 function disable() {
-    log('[TimeCheck Extension] Disabling attendance interceptor extension');
+    log('[Odoo Attendance App Extension] Disabling attendance interceptor extension');
     _bypassDepth = 0;
 
     if (_proto && _origProtoDescriptors) {
