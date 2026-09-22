@@ -3,14 +3,12 @@ import { Events } from '@wailsio/runtime';
 import * as AppService from '../bindings/time-check/appservice.js';
 import { DailyStatus } from './types.js';
 import { MainView } from './views/MainView.tsx';
-import { SettingsView } from './views/SettingsView.tsx';
 import { ShutdownOverlay } from './components/ShutdownOverlay.tsx';
 
 export const App: React.FC = () => {
   const urlParams = new URLSearchParams(window.location.search);
   const windowType = urlParams.get('window') || (window.location.hash ? window.location.hash.replace('#', '') : 'main');
 
-  const [view, setView] = useState<'main' | 'settings'>('main');
   const [status, setStatus] = useState<DailyStatus | null>(null);
   const [shutdownAction, setShutdownAction] = useState<string>('shutdown');
 
@@ -36,10 +34,6 @@ export const App: React.FC = () => {
       if (data) {
         setStatus(data);
       }
-    });
-
-    Events.On('open-settings', () => {
-      setView('settings');
     });
 
     // Check-out / Shutdown Prompt Action Event Listeners
@@ -76,14 +70,10 @@ export const App: React.FC = () => {
 
       {/* Main Container */}
       <main className="flex-1 overflow-hidden z-10">
-        {view === 'main' ? (
           <MainView
             status={status}
             onRefresh={fetchStatus}
           />
-        ) : (
-          <SettingsView onBack={() => setView('main')} />
-        )}
       </main>
     </div>
   );

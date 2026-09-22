@@ -44,7 +44,7 @@ export const MainView: React.FC<MainViewProps> = ({
   // Settings form state inside modal
   const [settingsUrl, setSettingsUrl] = useState('https://www.odoo.com/odoo');
   const [settingsAutostart, setSettingsAutostart] = useState(true);
-  const [settingsThreshold, setSettingsThreshold] = useState(3);
+  const [settingsThreshold, setSettingsThreshold] = useState(0);
   const [savingSettings, setSavingSettings] = useState(false);
   const [settingsMsg, setSettingsMsg] = useState<{ text: string; isError?: boolean } | null>(null);
 
@@ -161,7 +161,7 @@ export const MainView: React.FC<MainViewProps> = ({
       await AppService.SaveSettings({
         url: settingsUrl.trim(),
         autostart: settingsAutostart,
-        log_threshold_minutes: Number(settingsThreshold) || 3,
+        log_threshold_minutes: Number(settingsThreshold) || 0,
       });
       setSettingsMsg({ text: 'Settings saved!' });
       await loadData();
@@ -511,7 +511,7 @@ export const MainView: React.FC<MainViewProps> = ({
               </div>
 
               {/* Session Inactivity Threshold */}
-              <div className="rounded-2xl bg-slate-950/60 border border-slate-800 p-4">
+              {/* <div className="rounded-2xl bg-slate-950/60 border border-slate-800 p-4">
                 <div className="flex items-center justify-between mb-1">
                   <label htmlFor="modal-threshold-input" className="text-xs font-bold text-slate-200">
                     Session Inactivity Threshold
@@ -520,10 +520,10 @@ export const MainView: React.FC<MainViewProps> = ({
                     <input
                       id="modal-threshold-input"
                       type="number"
-                      min="1"
+                      min="0"
                       max="120"
                       value={settingsThreshold}
-                      onChange={e => setSettingsThreshold(Math.max(1, parseInt(e.target.value, 10) || 1))}
+                      onChange={e => setSettingsThreshold(Math.max(0, parseInt(e.target.value, 10) || 0))}
                       className="w-16 bg-slate-900 border border-slate-700 rounded-xl px-2.5 py-1 text-xs text-center text-white font-mono focus:outline-none focus:border-amber-500"
                     />
                     <span className="text-xs text-slate-400 font-medium">min</span>
@@ -532,7 +532,7 @@ export const MainView: React.FC<MainViewProps> = ({
                 <p className="text-[11px] text-slate-400 leading-relaxed mt-2">
                   If you check out but continue using your computer, TimeCheck will remind you again upon logout once this threshold has elapsed.
                 </p>
-              </div>
+              </div> */}
 
               {/* Launch on Startup */}
               <div className="rounded-2xl bg-slate-950/60 border border-slate-800 p-4 flex items-center justify-between">

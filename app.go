@@ -246,7 +246,7 @@ func (a *AppService) loadSettings() {
 		log.Printf("loadSettings: %v — using defaults", err)
 		s = schedule.DefaultSettings()
 	}
-	if s.LogThresholdMinutes <= 0 {
+	if s.LogThresholdMinutes < 0 {
 		s.LogThresholdMinutes = 3
 	}
 	a.settings = s
@@ -288,7 +288,7 @@ func (a *AppService) SaveSettings(s schedule.Settings) error {
 			return fmt.Errorf("attendance URL: %w", err)
 		}
 	}
-	if s.LogThresholdMinutes <= 0 {
+	if s.LogThresholdMinutes < 0 {
 		s.LogThresholdMinutes = 3
 	}
 	if err := a.store.WriteJSON(settingsFile, s); err != nil {

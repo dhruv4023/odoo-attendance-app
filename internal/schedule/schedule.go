@@ -30,8 +30,8 @@ type Settings struct {
 
 // GetLogThreshold returns the threshold duration without a log before showing reminder dialogs.
 func (s Settings) GetLogThreshold() time.Duration {
-	if s.LogThresholdMinutes <= 0 {
-		return 3 * time.Minute
+	if s.LogThresholdMinutes < 0 {
+		return 1 * time.Minute
 	}
 	return time.Duration(s.LogThresholdMinutes) * time.Minute
 }
@@ -41,7 +41,7 @@ func DefaultSettings() Settings {
 	return Settings{
 		URL:                 "https://www.odoo.com/odoo",
 		Autostart:           true,
-		LogThresholdMinutes: 3,
+		LogThresholdMinutes: 0,
 	}
 }
 

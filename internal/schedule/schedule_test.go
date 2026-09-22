@@ -15,8 +15,8 @@ func TestDefaultSettings(t *testing.T) {
 	if !s.Autostart {
 		t.Errorf("expected default Autostart to be true")
 	}
-	if s.GetLogThreshold() != 3*time.Minute {
-		t.Errorf("expected default log threshold to be 3 min, got %v", s.GetLogThreshold())
+	if s.GetLogThreshold() != 0 {
+		t.Errorf("expected default log threshold to be 0, got %v", s.GetLogThreshold())
 	}
 }
 
@@ -28,11 +28,18 @@ func TestSettings_GetLogThreshold(t *testing.T) {
 		t.Errorf("expected custom log threshold to be 5 min, got %v", custom.GetLogThreshold())
 	}
 
-	fallback := schedule.Settings{
+	zero := schedule.Settings{
 		LogThresholdMinutes: 0,
 	}
-	if fallback.GetLogThreshold() != 3*time.Minute {
-		t.Errorf("expected fallback threshold to be 3 min, got %v", fallback.GetLogThreshold())
+	if zero.GetLogThreshold() != 0 {
+		t.Errorf("expected zero threshold to be 0, got %v", zero.GetLogThreshold())
+	}
+
+	fallback := schedule.Settings{
+		LogThresholdMinutes: -1,
+	}
+	if fallback.GetLogThreshold() != 1*time.Minute {
+		t.Errorf("expected fallback threshold to be 1 min, got %v", fallback.GetLogThreshold())
 	}
 }
 
