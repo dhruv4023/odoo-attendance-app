@@ -82,14 +82,15 @@ func (e *windowEmitter) Emit(name string, data ...interface{}) {
 // AppService is the Wails v3 service bound to the frontend.
 // It implements the full API surface and wires all internal packages.
 type AppService struct {
-	mainWindow  *application.WebviewWindow
-	emitter     *windowEmitter
-	store       *storage.FileStore
-	settings    schedule.Settings
-	attendance  *attendance.Manager
-	lifecycle   *lifecycle.LinuxLifecycleManager
-	urlLauncher launcher.URLLauncher
-	wailsApp    *application.App
+	mainWindow     *application.WebviewWindow
+	checkoutWindow *application.WebviewWindow
+	emitter        *windowEmitter
+	store          *storage.FileStore
+	settings       schedule.Settings
+	attendance     *attendance.Manager
+	lifecycle      *lifecycle.LinuxLifecycleManager
+	urlLauncher    launcher.URLLauncher
+	wailsApp       *application.App
 
 	mu sync.Mutex
 }
@@ -101,10 +102,15 @@ func NewAppService() *AppService {
 	}
 }
 
-// setWindow configures the reference to the single main window.
+// SetWindows configures the references to the main app window and the checkout dialog window.
+func (a *AppService) SetWindows(mainWin, checkoutWin *application.WebviewWindow) {
+	a.mainWindow = mainWin
+	a.checkoutWindow = checkoutWin
+	a.emitter.SetWindows(mainWin, checkoutWin)
+}
+
 func (a *AppService) setWindow(w *application.WebviewWindow) {
-	a.mainWindow = w
-	a.emitter.SetWindows(w)
+	a.SetWindows(w, nil)
 }
 
 // Startup initialises all background services. Called before app.Run().
@@ -177,6 +183,7 @@ type showWindowEmitter struct {
 func (e *showWindowEmitter) Emit(name string, data ...interface{}) {
 	if name == "login-requested" {
 		e.svc.ShowCheckInWindow()
+		return
 	} else if name == "shutdown-requested" {
 		action := "shutdown"
 		if len(data) > 0 {
@@ -185,20 +192,13 @@ func (e *showWindowEmitter) Emit(name string, data ...interface{}) {
 			}
 		}
 		e.svc.ShowCheckOutWindow(action)
-	} else if name == "reminder-triggered" {
-		if len(data) > 0 {
-			if m, ok := data[0].(map[string]string); ok {
-				if m["type"] == "check_in" {
-					e.svc.ShowCheckInWindow()
-				} else if m["type"] == "check_out" {
-					e.svc.ShowCheckOutWindow("reminder")
-				}
-			}
-		}
+		return
 	} else if name == "login-dialog-closed" {
 		e.svc.HideCheckInWindow()
+		return
 	} else if name == "shutdown-dialog-closed" {
 		e.svc.HideCheckOutWindow()
+		return
 	}
 	e.delegate.Emit(name, data...)
 }
@@ -365,24 +365,22 @@ func (a *AppService) HideCheckInWindow() {
 	a.HideWindow()
 }
 
-// ShowCheckOutWindow displays the checkout prompt in the main window.
+// ShowCheckOutWindow displays the 2nd window (checkout/logout dialog) maximised.
 func (a *AppService) ShowCheckOutWindow(action string) {
-	a.ShowWindow()
-	if a.mainWindow != nil {
-		a.mainWindow.EmitEvent("checkout-requested", map[string]string{"action": action})
+	if a.checkoutWindow != nil {
+		a.checkoutWindow.SetAlwaysOnTop(true)
+		a.checkoutWindow.Show()
+		a.checkoutWindow.Maximise()
+		a.checkoutWindow.Focus()
+		a.checkoutWindow.EmitEvent("checkout-requested", map[string]string{"action": action})
 	}
 }
 
-// HideCheckOutWindow hides the window.
+// HideCheckOutWindow hides the 2nd window (checkout/logout dialog).
 func (a *AppService) HideCheckOutWindow() {
-	a.HideWindow()
-}
-
-// ShowSettingsWindow displays the main window with settings view active.
-func (a *AppService) ShowSettingsWindow() {
-	a.ShowWindow()
-	if a.mainWindow != nil {
-		a.mainWindow.EmitEvent("open-settings")
+	if a.checkoutWindow != nil {
+		a.checkoutWindow.SetAlwaysOnTop(false)
+		a.checkoutWindow.Hide()
 	}
 }
 

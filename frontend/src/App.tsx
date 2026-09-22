@@ -4,11 +4,15 @@ import * as AppService from '../bindings/time-check/appservice.js';
 import { DailyStatus } from './types.js';
 import { MainView } from './views/MainView.tsx';
 import { SettingsView } from './views/SettingsView.tsx';
+import { ShutdownOverlay } from './components/ShutdownOverlay.tsx';
 
 export const App: React.FC = () => {
+  const urlParams = new URLSearchParams(window.location.search);
+  const windowType = urlParams.get('window') || (window.location.hash ? window.location.hash.replace('#', '') : 'main');
+
   const [view, setView] = useState<'main' | 'settings'>('main');
   const [status, setStatus] = useState<DailyStatus | null>(null);
-  const [shutdownAction, setShutdownAction] = useState<string | null>(null);
+  const [shutdownAction, setShutdownAction] = useState<string>('shutdown');
 
   const fetchStatus = useCallback(async () => {
     try {
@@ -22,7 +26,9 @@ export const App: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    fetchStatus();
+    if (windowType !== 'checkout') {
+      fetchStatus();
+    }
 
     // Wails v3 Event Listeners
     Events.On('status-changed', (ev: any) => {
@@ -39,17 +45,29 @@ export const App: React.FC = () => {
     // Check-out / Shutdown Prompt Action Event Listeners
     Events.On('checkout-requested', (ev: any) => {
       const data = ev?.data ?? ev;
-      const action = typeof data === 'object' && data?.action ? data.action : 'shutdown';
+      const action = typeof data === 'object' && data?.action ? data.action : typeof data === 'string' ? data : 'shutdown';
       setShutdownAction(action);
     });
 
     Events.On('shutdown-requested', (ev: any) => {
       const data = ev?.data ?? ev;
-      const action = typeof data === 'object' && data?.action ? data.action : 'shutdown';
+      const action = typeof data === 'object' && data?.action ? data.action : typeof data === 'string' ? data : 'shutdown';
       setShutdownAction(action);
     });
-  }, [fetchStatus]);
+  }, [fetchStatus, windowType]);
 
+  // Window 2: Dedicated Check-Out / Logout Dialog Window
+  if (windowType === 'checkout') {
+    return (
+      <ShutdownOverlay
+        isOpen={true}
+        action={shutdownAction}
+        onClose={() => AppService.HideCheckOutWindow()}
+      />
+    );
+  }
+
+  // Window 1: Main Application Window
   return (
     <div className="flex flex-col h-full bg-slate-950 text-slate-100 select-none overflow-hidden relative">
       {/* Background ambient lighting */}
@@ -62,8 +80,6 @@ export const App: React.FC = () => {
           <MainView
             status={status}
             onRefresh={fetchStatus}
-            shutdownAction={shutdownAction}
-            onClearShutdownAction={() => setShutdownAction(null)}
           />
         ) : (
           <SettingsView onBack={() => setView('main')} />

@@ -25,15 +25,11 @@ import {
 interface MainViewProps {
   status: DailyStatus | null;
   onRefresh: () => void;
-  shutdownAction?: string | null;
-  onClearShutdownAction?: () => void;
 }
 
 export const MainView: React.FC<MainViewProps> = ({
   status,
   onRefresh,
-  shutdownAction,
-  onClearShutdownAction,
 }) => {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [settings, setSettings] = useState<Settings | null>(null);
@@ -174,40 +170,6 @@ export const MainView: React.FC<MainViewProps> = ({
       setSettingsMsg({ text: e?.message || 'Failed to save', isError: true });
     } finally {
       setSavingSettings(false);
-    }
-  };
-
-  // Shutdown Prompt Actions
-  const handleShutdownCheckOut = async () => {
-    setActionLoading(true);
-    try {
-      await AppService.ShutdownCheckOut();
-      onClearShutdownAction?.();
-      onRefresh();
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
-  const handleShutdownCancel = async () => {
-    setActionLoading(true);
-    try {
-      await AppService.ShutdownCancel();
-      onClearShutdownAction?.();
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
-  const handleShutdownSkip = async () => {
-    setActionLoading(true);
-    try {
-      await AppService.ShutdownSkip();
-      onClearShutdownAction?.();
-    } finally {
-      setActionLoading(false);
     }
   };
 
@@ -612,57 +574,6 @@ export const MainView: React.FC<MainViewProps> = ({
                 <Save className="w-3.5 h-3.5" />
                 <span>{savingSettings ? 'Saving…' : 'Save Settings'}</span>
               </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── MODAL 3: SHUTDOWN / LOGOUT CHECKOUT PROMPT ── */}
-      {shutdownAction && (
-        <div className="fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-xl flex items-center justify-center p-4 animate-slide-up">
-          <div className="relative w-full max-w-md rounded-3xl bg-slate-900 border border-rose-500/40 p-7 shadow-2xl flex flex-col items-center text-center">
-            <div className="w-14 h-14 rounded-2xl bg-rose-500/15 border border-rose-500/30 flex items-center justify-center text-rose-400 mb-4 shadow-inner">
-              <LogOut className="w-7 h-7 animate-pulse-subtle" />
-            </div>
-
-            <h2 className="text-xl font-bold tracking-tight text-white mb-2">
-              Did you check out in Odoo?
-            </h2>
-            <p className="text-xs text-slate-300 leading-relaxed mb-6">
-              You are about to {shutdownAction === 'logout' ? 'log out' : shutdownAction === 'reboot' ? 'restart' : 'power off'}. No recent check-out was recorded.
-            </p>
-
-            <div className="flex flex-col gap-2.5 w-full">
-              <button
-                type="button"
-                onClick={handleShutdownCheckOut}
-                disabled={actionLoading}
-                className="w-full inline-flex items-center justify-center gap-2 py-3.5 px-4 rounded-2xl font-bold text-sm bg-gradient-to-r from-rose-600 to-rose-700 hover:from-rose-500 hover:to-rose-600 active:scale-98 disabled:opacity-50 text-white shadow-xl shadow-rose-950/60 transition-all cursor-pointer border border-rose-400/30"
-              >
-                <LogOut className="w-4 h-4 shrink-0 text-rose-200" />
-                <span>{actionLoading ? 'Opening Odoo…' : 'Check Out in Odoo'}</span>
-                <ExternalLink className="w-3.5 h-3.5 opacity-70 ml-0.5" />
-              </button>
-
-              <div className="flex gap-2 w-full">
-                <button
-                  type="button"
-                  onClick={handleShutdownCancel}
-                  disabled={actionLoading}
-                  className="flex-1 inline-flex items-center justify-center py-2.5 px-3 rounded-xl font-semibold text-xs bg-slate-800 hover:bg-slate-700 active:scale-98 disabled:opacity-50 text-slate-200 border border-slate-700 transition-all cursor-pointer"
-                >
-                  <span>Stay Logged In</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleShutdownSkip}
-                  disabled={actionLoading}
-                  className="inline-flex items-center justify-center py-2.5 px-3 rounded-xl font-medium text-xs bg-slate-900 hover:bg-slate-800 active:scale-98 disabled:opacity-50 text-slate-400 hover:text-slate-300 border border-slate-800 transition-all cursor-pointer"
-                >
-                  <span>Skip & Log Out</span>
-                </button>
-              </div>
             </div>
           </div>
         </div>

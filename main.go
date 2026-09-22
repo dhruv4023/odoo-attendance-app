@@ -45,7 +45,7 @@ func main() {
 
 	// Single-instance lock via Unix domain socket.
 	lockPath := singleInstanceLockPath()
-	ln, err := acquireSingleInstance(lockPath, svc.ShowSettingsWindow)
+	ln, err := acquireSingleInstance(lockPath, svc.ShowWindow)
 	if err != nil {
 		// Another instance is running — signal it to come to the foreground.
 		signalExistingInstance(lockPath)
@@ -75,7 +75,7 @@ func main() {
 		},
 	})
 
-	// ── Single Main Window (Maximised) ──────────────────────────────────────
+	// ── Window 1: Main App Window (Maximised) ───────────────────────────────
 	mainWin := app.Window.NewWithOptions(application.WebviewWindowOptions{
 		Title:            "TimeCheck",
 		Name:             "main",
@@ -90,13 +90,33 @@ func main() {
 		BackgroundColour: application.NewRGBA(15, 23, 42, 255),
 	})
 	mainWin.RegisterHook(events.Common.WindowClosing, func(e *application.WindowEvent) {
-		svc.CancelIfCheckingOut()
 		mainWin.Hide()
 		e.Cancel()
 	})
 
-	// Give the service reference to the single window.
-	svc.setWindow(mainWin)
+	// ── Window 2: Logout / Check-Out Dialog Window (Maximised) ──────────────
+	checkoutWin := app.Window.NewWithOptions(application.WebviewWindowOptions{
+		Title:            "TimeCheck - Check Out",
+		Name:             "checkout",
+		Width:            1024,
+		Height:           768,
+		MinWidth:         600,
+		MinHeight:        400,
+		StartState:       application.WindowStateMaximised,
+		AlwaysOnTop:      true,
+		Hidden:           true,
+		HideOnEscape:     true,
+		URL:              "/?window=checkout",
+		BackgroundColour: application.NewRGBA(15, 23, 42, 255),
+	})
+	checkoutWin.RegisterHook(events.Common.WindowClosing, func(e *application.WindowEvent) {
+		svc.ShutdownCancel()
+		checkoutWin.Hide()
+		e.Cancel()
+	})
+
+	// Give the service references to both windows.
+	svc.SetWindows(mainWin, checkoutWin)
 
 	// ── System Tray ─────────────────────────────────────────────────────────
 	tray := app.SystemTray.New()
