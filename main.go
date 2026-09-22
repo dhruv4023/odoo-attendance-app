@@ -75,15 +75,14 @@ func main() {
 		},
 	})
 
+
 	// ── Window 1: Main App Window (Maximised) ───────────────────────────────
 	mainWin := app.Window.NewWithOptions(application.WebviewWindowOptions{
 		Title:            "TimeCheck",
 		Name:             "main",
+		StartState:       application.WindowStateNormal,
 		Width:            1024,
 		Height:           768,
-		MinWidth:         600,
-		MinHeight:        400,
-		StartState:       application.WindowStateMaximised,
 		Hidden:           true,
 		HideOnEscape:     true,
 		URL:              "/",
@@ -98,12 +97,9 @@ func main() {
 	checkoutWin := app.Window.NewWithOptions(application.WebviewWindowOptions{
 		Title:            "TimeCheck - Check Out",
 		Name:             "checkout",
+		StartState:       application.WindowStateNormal,
 		Width:            1024,
 		Height:           768,
-		MinWidth:         600,
-		MinHeight:        400,
-		StartState:       application.WindowStateMaximised,
-		AlwaysOnTop:      true,
 		Hidden:           true,
 		HideOnEscape:     true,
 		URL:              "/?window=checkout",

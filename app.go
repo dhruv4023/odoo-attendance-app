@@ -335,19 +335,16 @@ func (a *AppService) GetTodayStatus() attendance.DailyStatus {
 
 // ShowWindow shows and focuses the main application window maximised.
 func (a *AppService) ShowWindow() {
-	if a.mainWindow != nil {
-		a.mainWindow.UnFullscreen()
-		a.mainWindow.Show()
-		a.mainWindow.Maximise()
-		a.mainWindow.Focus()
-		a.mainWindow.EmitEvent("status-changed", a.attendance.GetStatus())
+	if a.mainWindow == nil {
+		return
 	}
+	a.mainWindow.Show()
+	a.mainWindow.Focus()
+	a.mainWindow.EmitEvent("status-changed", a.attendance.GetStatus())
 }
-
 // HideWindow hides the main application window.
 func (a *AppService) HideWindow() {
 	if a.mainWindow != nil {
-		a.mainWindow.SetAlwaysOnTop(false)
 		a.mainWindow.Hide()
 	}
 }
@@ -365,13 +362,11 @@ func (a *AppService) HideCheckInWindow() {
 	a.HideWindow()
 }
 
-// ShowCheckOutWindow displays the 2nd window (checkout/logout dialog) maximised.
+// ShowCheckOutWindow displays the 2nd window (checkout/logout dialog) maximised without size flash.
 func (a *AppService) ShowCheckOutWindow(action string) {
 	if a.checkoutWindow != nil {
-		a.checkoutWindow.SetAlwaysOnTop(true)
-		a.checkoutWindow.Show()
-		a.checkoutWindow.Maximise()
-		a.checkoutWindow.Focus()
+	a.checkoutWindow.Show()
+	a.checkoutWindow.Focus()
 		a.checkoutWindow.EmitEvent("checkout-requested", map[string]string{"action": action})
 	}
 }
@@ -379,7 +374,6 @@ func (a *AppService) ShowCheckOutWindow(action string) {
 // HideCheckOutWindow hides the 2nd window (checkout/logout dialog).
 func (a *AppService) HideCheckOutWindow() {
 	if a.checkoutWindow != nil {
-		a.checkoutWindow.SetAlwaysOnTop(false)
 		a.checkoutWindow.Hide()
 	}
 }

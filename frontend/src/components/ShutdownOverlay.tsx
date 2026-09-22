@@ -74,9 +74,9 @@ export const ShutdownOverlay: React.FC<ShutdownOverlayProps> = ({ isOpen, action
   const actionLabel = action === 'logout' ? 'logging out' : action === 'reboot' ? 'restarting' : 'powering off';
 
   return (
-    <div className="relative w-screen h-screen bg-slate-950 text-slate-100 flex flex-col justify-between select-none overflow-hidden font-sans">
+    <div className="relative w-screen h-screen bg-[#0f172a] text-slate-100 flex flex-col justify-between select-none overflow-hidden font-sans">
       {/* Dynamic Ambient Background Glows */}
-      <div className="absolute top-1/4 left-1/4 w-[36rem] h-[36rem] bg-rose-500/10 rounded-full blur-[120px] pointer-events-none animate-pulse-subtle" />
+      <div className="absolute top-1/4 left-1/4 w-[36rem] h-[36rem] bg-rose-500/10 rounded-full blur-[120px] pointer-events-none" />
       <div className="absolute bottom-1/4 right-1/4 w-[36rem] h-[36rem] bg-amber-500/10 rounded-full blur-[120px] pointer-events-none" />
 
       {/* Top Bar */}
@@ -105,10 +105,10 @@ export const ShutdownOverlay: React.FC<ShutdownOverlayProps> = ({ isOpen, action
 
       {/* Center Dialog Card */}
       <main className="flex-1 flex items-center justify-center p-6 z-10">
-        <div className="relative w-full max-w-md rounded-3xl bg-slate-900/90 border border-rose-500/40 p-8 shadow-2xl flex flex-col items-center text-center backdrop-blur-xl animate-slide-up">
+        <div className="relative w-full max-w-md rounded-3xl bg-slate-900 border border-rose-500/40 p-8 shadow-2xl flex flex-col items-center text-center">
           {/* Warning Icon Badge */}
           <div className="w-14 h-14 rounded-2xl bg-rose-500/15 border border-rose-500/30 flex items-center justify-center text-rose-400 mb-4 shadow-inner">
-            <AlertTriangle className="w-7 h-7 animate-pulse-subtle" />
+            <AlertTriangle className="w-7 h-7" />
           </div>
 
           <h2 className="text-xl font-bold tracking-tight text-white mb-2">
