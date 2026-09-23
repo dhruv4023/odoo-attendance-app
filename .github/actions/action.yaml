@@ -69,7 +69,7 @@ runs:
           EXTRA_TAGS_ARG="EXTRA_TAGS=${{ inputs.extra-tags }}"
         fi
         task linux:build $EXTRA_TAGS_ARG OUTPUT="bin/${{ inputs.build-name }}"
-        rm -f bin/timecheck
+        rm -f bin/odoo-attendance-app
         chmod +x "bin/${{ inputs.build-name }}"
 
     - name: Run Tests

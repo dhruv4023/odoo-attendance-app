@@ -1,13 +1,13 @@
 [Unit]
-Description=TimeCheck
-Documentation=https://github.com/your-org/timecheck
+Description=Odoo Attendance App
+Documentation=https://github.com/your-org/odoo-attendance-app
 # Start after the graphical session is available.
 After=graphical-session.target
 PartOf=graphical-session.target
 
 [Service]
 Type=simple
-ExecStart=%h/.local/bin/timecheck
+ExecStart=%h/.local/bin/odoo-attendance-app
 WorkingDirectory=%h
 # Restart only on unexpected crashes, not on clean Quit.
 Restart=on-failure

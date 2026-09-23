@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"time-check/internal/storage"
+	"odoo-attendance-app/internal/storage"
 )
 
 // ErrAlreadyCheckedIn is returned when CheckIn is called but already checked in today.

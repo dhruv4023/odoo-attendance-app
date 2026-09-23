@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"time-check/internal/attendance"
-	"time-check/internal/storage"
+	"odoo-attendance-app/internal/attendance"
+	"odoo-attendance-app/internal/storage"
 )
 
 // fakeClock is a controllable clock for testing.

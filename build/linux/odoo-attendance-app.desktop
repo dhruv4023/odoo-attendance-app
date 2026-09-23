@@ -1,8 +1,8 @@
 [Desktop Entry]
 Type=Application
-Name=timecheck
-Exec=timecheck
-Icon=timecheck
+Name=odoo-attendance-app
+Exec=odoo-attendance-app
+Icon=odoo-attendance-app
 Categories=Development;
 Terminal=false
 Keywords=wails

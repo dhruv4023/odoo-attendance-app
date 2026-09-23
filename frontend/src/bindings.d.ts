@@ -1,4 +1,4 @@
-declare module '*/bindings/time-check/appservice.js' {
+declare module '*/bindings/odoo-attendance-app/appservice.js' {
   export function CheckIn(): Promise<any>;
   export function CheckOut(): Promise<any>;
   export function ForceCheckOut(): Promise<any>;

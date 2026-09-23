@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"time-check/internal/schedule"
+	"odoo-attendance-app/internal/schedule"
 )
 
 func TestDefaultSettings(t *testing.T) {

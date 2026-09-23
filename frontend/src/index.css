@@ -3,6 +3,20 @@
 @layer base {
   :root {
     --font-inter: 'Inter', system-ui, -apple-system, sans-serif;
+    --btn-color: #FFF;
+    --btn-bg: #6b3e66;
+    --btn-border-color: #6b3e66;
+    --btn-hover-color: #FFF;
+    --btn-hover-bg: #7b4775;
+    --btn-hover-border-color: #7b4775;
+    --btn-focus-shadow-rgb: 129, 91, 125;
+    --btn-active-color: #FFF;
+    --btn-active-bg: #8b5185;
+    --btn-active-border-color: #8b5185;
+    --btn-active-shadow: 0;
+    --btn-disabled-color: #FFF;
+    --btn-disabled-bg: #6b3e66;
+    --btn-disabled-border-color: #6b3e66;
   }
 
   *, *::before, *::after {
@@ -14,8 +28,8 @@
   html, body {
     height: 100%;
     font-family: var(--font-inter);
-    background-color: #0f172a;
-    color: #f1f5f9;
+    background-color: #1c1722;
+    color: #f8f7f9;
     font-size: 15px;
     line-height: 1.5;
     -webkit-font-smoothing: antialiased;
@@ -38,11 +52,11 @@
     background: transparent;
   }
   ::-webkit-scrollbar-thumb {
-    background: rgba(148, 163, 184, 0.2);
+    background: rgba(107, 62, 102, 0.45);
     border-radius: 9999px;
   }
   ::-webkit-scrollbar-thumb:hover {
-    background: rgba(148, 163, 184, 0.35);
+    background: rgba(123, 71, 117, 0.75);
   }
 }
 

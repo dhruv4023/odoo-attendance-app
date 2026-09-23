@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"time-check/internal/storage"
+	"odoo-attendance-app/internal/storage"
 )
 
 func newTestStore(t *testing.T) *storage.FileStore {
@@ -94,7 +94,7 @@ func TestNewFileStore(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewFileStore: %v", err)
 	}
-	want := filepath.Join(tmp, "time-check")
+	want := filepath.Join(tmp, "odoo-attendance-app")
 	if s.Dir() != want {
 		t.Errorf("Dir() = %q, want %q", s.Dir(), want)
 	}

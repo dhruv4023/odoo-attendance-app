@@ -1,11 +1,11 @@
-# TimeCheck Attendance Reminder
+# Odoo Attendance App Attendance Reminder
 Work schedule check-in/check-out reminder application built with Wails v3, featuring system tray integration and GNOME Shell lock/logout interception.
 
 ---
 
 ## System Requirements & Dependencies
 
-Because TimeCheck uses native Linux GUI toolkits, the required libraries depend on your Ubuntu version:
+Because Odoo Attendance App uses native Linux GUI toolkits, the required libraries depend on your Ubuntu version:
 
 ### 🟢 Ubuntu 24.04 LTS (Noble) & Newer (GTK 4)
 
@@ -27,7 +27,7 @@ sudo apt install build-essential pkg-config libgtk-4-dev libwebkitgtk-6.0-dev li
 
 ### 🟡 Ubuntu 22.04 LTS (Jammy) & Debian 12 (GTK 3)
 
-Ubuntu 22.04 includes GTK 4.6 (which lacks newer GTK 4.14+ symbols). Use the **GTK 3** build (`timecheck-22` or `timecheck-ubuntu-22.04-amd64`).
+Ubuntu 22.04 includes GTK 4.6 (which lacks newer GTK 4.14+ symbols). Use the **GTK 3** build (`odoo-attendance-app-22` or `odoo-attendance-app-ubuntu-22.04-amd64`).
 
 #### 1. Runtime Dependencies (To run the app / release binary):
 ```bash
@@ -47,13 +47,13 @@ sudo apt install build-essential pkg-config libgtk-3-dev libwebkit2gtk-4.1-dev l
 
 Download the appropriate binary for your system from the [Releases](../../releases) page:
 
-* **For Ubuntu 24.04+**: `timecheck-ubuntu-24.04-amd64` (or `timecheck-24`)
-* **For Ubuntu 22.04 / Debian**: `timecheck-ubuntu-22.04-amd64` (or `timecheck-22`)
+* **For Ubuntu 24.04+**: `odoo-attendance-app-ubuntu-24.04-amd64` (or `odoo-attendance-app-24`)
+* **For Ubuntu 22.04 / Debian**: `odoo-attendance-app-ubuntu-22.04-amd64` (or `odoo-attendance-app-22`)
 
 Make it executable and run:
 ```bash
-chmod +x timecheck-*
-./timecheck-*
+chmod +x odoo-attendance-app-*
+./odoo-attendance-app-*
 ```
 
 ---
@@ -77,18 +77,18 @@ chmod +x timecheck-*
 * **Build for Ubuntu 24.04+ (GTK 4)**:
   ```bash
   task build:ubuntu-24
-  # Output: bin/timecheck-24
+  # Output: bin/odoo-attendance-app-24
   ```
 
 * **Build for Ubuntu 22.04 / Debian 12 (GTK 3)**:
   ```bash
   task build:ubuntu-22
-  # Output: bin/timecheck-22
+  # Output: bin/odoo-attendance-app-22
   ```
 
 * **Default Build**:
   ```bash
   task build
-  # Output: bin/timecheck
+  # Output: bin/odoo-attendance-app
   ```
 

@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"time-check/internal/lifecycle"
+	"odoo-attendance-app/internal/lifecycle"
 )
 
 // fakeEmitter records emitted events and payloads for test assertions.

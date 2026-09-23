@@ -59,7 +59,7 @@ func main() {
 	}()
 
 	app := application.New(application.Options{
-		Name:        "TimeCheck",
+		Name:        "Odoo Attendance App",
 		Description: "Check-in/check-out work schedule reminder",
 		Assets: application.AssetOptions{
 			Handler: application.BundledAssetFileServer(assets),
@@ -71,14 +71,14 @@ func main() {
 		Linux: application.LinuxOptions{
 			// Keep the app alive when windows are closed.
 			DisableQuitOnLastWindowClosed: true,
-			ProgramName:                   "timecheck",
+			ProgramName:                   "odoo-attendance-app",
 		},
 	})
 
 
 	// ── Window 1: Main App Window (Maximised) ───────────────────────────────
 	mainWin := app.Window.NewWithOptions(application.WebviewWindowOptions{
-		Title:            "TimeCheck",
+		Title:            "Odoo Attendance App",
 		Name:             "main",
 		StartState:       application.WindowStateNormal,
 		Width:            1024,
@@ -86,7 +86,7 @@ func main() {
 		Hidden:           true,
 		HideOnEscape:     true,
 		URL:              "/",
-		BackgroundColour: application.NewRGBA(15, 23, 42, 255),
+		BackgroundColour: application.NewRGBA(28, 22, 34, 255),
 	})
 	mainWin.RegisterHook(events.Common.WindowClosing, func(e *application.WindowEvent) {
 		mainWin.Hide()
@@ -95,7 +95,7 @@ func main() {
 
 	// ── Window 2: Logout / Check-Out Dialog Window (Maximised) ──────────────
 	checkoutWin := app.Window.NewWithOptions(application.WebviewWindowOptions{
-		Title:            "TimeCheck - Check Out",
+		Title:            "Odoo Attendance App - Check Out",
 		Name:             "checkout",
 		StartState:       application.WindowStateNormal,
 		Width:            1024,
@@ -103,7 +103,7 @@ func main() {
 		Hidden:           true,
 		HideOnEscape:     true,
 		URL:              "/?window=checkout",
-		BackgroundColour: application.NewRGBA(15, 23, 42, 255),
+		BackgroundColour: application.NewRGBA(28, 22, 34, 255),
 	})
 	checkoutWin.RegisterHook(events.Common.WindowClosing, func(e *application.WindowEvent) {
 		svc.ShutdownCancel()
@@ -117,10 +117,10 @@ func main() {
 	// ── System Tray ─────────────────────────────────────────────────────────
 	tray := app.SystemTray.New()
 	tray.SetIcon(appIcon)
-	tray.SetTooltip("TimeCheck")
+	tray.SetTooltip("Odoo Attendance App")
 
 	menu := app.NewMenu()
-	menu.Add("TimeCheck").SetEnabled(false)
+	menu.Add("Odoo Attendance App").SetEnabled(false)
 	menu.AddSeparator()
 	menu.Add("Open App").OnClick(func(ctx *application.Context) {
 		svc.ShowWindow()
@@ -146,13 +146,13 @@ func main() {
 func singleInstanceLockPath() string {
 	runDir := os.Getenv("XDG_RUNTIME_DIR")
 	if runDir != "" {
-		return filepath.Join(runDir, "timecheck.sock")
+		return filepath.Join(runDir, "odoo-attendance-app.sock")
 	}
 	// Fallback to a user-private directory in /tmp with mode 0700 to prevent symlink attacks
-	tmpUserDir := filepath.Join(os.TempDir(), fmt.Sprintf("timecheck-runtime-%d", os.Getuid()))
+	tmpUserDir := filepath.Join(os.TempDir(), fmt.Sprintf("odoo-attendance-app-runtime-%d", os.Getuid()))
 	_ = os.MkdirAll(tmpUserDir, 0700)
 	_ = os.Chmod(tmpUserDir, 0700)
-	return filepath.Join(tmpUserDir, "timecheck.sock")
+	return filepath.Join(tmpUserDir, "odoo-attendance-app.sock")
 }
 
 // acquireSingleInstance attempts to listen on the lock socket atomically.

@@ -3,7 +3,7 @@ package launcher_test
 import (
 	"testing"
 
-	"time-check/internal/launcher"
+	"odoo-attendance-app/internal/launcher"
 )
 
 func TestValidateURL(t *testing.T) {
