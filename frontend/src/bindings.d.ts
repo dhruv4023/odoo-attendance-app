@@ -3,6 +3,9 @@ declare module '*/bindings/odoo-attendance-app/appservice.js' {
   export function CheckOut(): Promise<any>;
   export function ForceCheckOut(): Promise<any>;
   export function GetTodayStatus(): Promise<any>;
+  export function GetOdooStatus(): Promise<any>;
+  export function SyncOdooStatus(): Promise<any>;
+  export function TestOdooConnection(odooURL: string, apiKey: string): Promise<any>;
   export function GetSettings(): Promise<any>;
   export function SaveSettings(settings: any): Promise<any>;
   export function GetNextReminder(): Promise<any>;
@@ -20,4 +23,14 @@ declare module '*/bindings/odoo-attendance-app/appservice.js' {
   export function ShutdownSkip(): Promise<any>;
   export function HideWindow(): Promise<any>;
   export function ShowWindow(): Promise<any>;
+}
+
+declare module '*.png' {
+  const src: string;
+  export default src;
+}
+
+declare module '*.svg' {
+  const src: string;
+  export default src;
 }

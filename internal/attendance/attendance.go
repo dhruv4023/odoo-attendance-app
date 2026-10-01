@@ -9,13 +9,10 @@ import (
 	"odoo-attendance-app/internal/storage"
 )
 
-// ErrAlreadyCheckedIn is returned when CheckIn is called but already checked in today.
 var ErrAlreadyCheckedIn = errors.New("attendance: already checked in today")
 
-// ErrAlreadyCheckedOut is returned when CheckOut is called but already checked out today.
 var ErrAlreadyCheckedOut = errors.New("attendance: already checked out today")
 
-// ErrNotCheckedIn is returned when CheckOut is called without a prior CheckIn.
 var ErrNotCheckedIn = errors.New("attendance: not checked in")
 
 // LogEntry represents an individual check-in or check-out timestamp record.
@@ -26,9 +23,12 @@ type LogEntry struct {
 
 // DailyStatus represents the persisted check-in/check-out state for one day.
 type DailyStatus struct {
-	Date      string     `json:"date"`
-	CheckedIn bool       `json:"checked_in"`
-	Logs      []LogEntry `json:"logs,omitempty"`
+	Date          string     `json:"date"`
+	CheckedIn     bool       `json:"checked_in"`
+	Logs          []LogEntry `json:"logs,omitempty"`
+	EmployeeName  string     `json:"employee_name,omitempty"`
+	EmployeeID    int        `json:"employee_id,omitempty"`
+	OdooConnected bool       `json:"odoo_connected,omitempty"`
 }
 
 const statusFile = "status.json"
@@ -156,6 +156,12 @@ func (m *Manager) CheckOut() error {
 	return m.store.WriteJSON(statusFile, m.status)
 }
 
+// HasActivityToday returns true if at least one check-in or check-out log exists for today.
+func (m *Manager) HasActivityToday() bool {
+	today := m.clock.Now().Format("2006-01-02")
+	return m.status.Date == today && len(m.status.Logs) > 0
+}
+
 // LastLogTime returns the timestamp of the most recent log entry today, or a zero time.Time if no logs exist.
 func (m *Manager) LastLogTime() time.Time {
 	if len(m.status.Logs) == 0 {
@@ -196,5 +202,19 @@ func (m *Manager) ForceCheckOut() error {
 		Type:      "check_out",
 		Timestamp: now,
 	})
+	return m.store.WriteJSON(statusFile, m.status)
+}
+
+// SyncFromOdoo synchronizes local state with Odoo attendance status.
+func (m *Manager) SyncFromOdoo(employeeName string, employeeID int, isCheckedIn bool, logs []LogEntry) error {
+	today := m.clock.Now().Format("2006-01-02")
+	m.status.Date = today
+	m.status.EmployeeName = employeeName
+	m.status.EmployeeID = employeeID
+	m.status.OdooConnected = true
+	m.status.CheckedIn = isCheckedIn
+	if len(logs) > 0 {
+		m.status.Logs = logs
+	}
 	return m.store.WriteJSON(statusFile, m.status)
 }

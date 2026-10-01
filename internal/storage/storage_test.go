@@ -9,18 +9,20 @@ import (
 	"odoo-attendance-app/internal/storage"
 )
 
-func newTestStore(t *testing.T) *storage.FileStore {
+func newTestStore(t *testing.T) (*storage.FileStore, string) {
 	t.Helper()
 	dir := t.TempDir()
-	s, err := storage.NewFileStoreAt(dir)
+	t.Setenv("XDG_CONFIG_HOME", dir)
+	s, err := storage.NewFileStore()
 	if err != nil {
-		t.Fatalf("NewFileStoreAt: %v", err)
+		t.Fatalf("NewFileStore: %v", err)
 	}
-	return s
+	storeDir := filepath.Join(dir, "odoo-attendance-app")
+	return s, storeDir
 }
 
 func TestWriteAndReadJSON(t *testing.T) {
-	s := newTestStore(t)
+	s, _ := newTestStore(t)
 	type payload struct {
 		Name string `json:"name"`
 		Age  int    `json:"age"`
@@ -39,7 +41,7 @@ func TestWriteAndReadJSON(t *testing.T) {
 }
 
 func TestReadJSONNotFound(t *testing.T) {
-	s := newTestStore(t)
+	s, _ := newTestStore(t)
 	var v interface{}
 	err := s.ReadJSON("missing.json", &v)
 	if !errors.Is(err, storage.ErrNotFound) {
@@ -48,12 +50,15 @@ func TestReadJSONNotFound(t *testing.T) {
 }
 
 func TestWriteJSONAtomic(t *testing.T) {
-	s := newTestStore(t)
+	s, storeDir := newTestStore(t)
 	// Ensure no lingering temp files after write.
 	if err := s.WriteJSON("data.json", map[string]int{"x": 1}); err != nil {
 		t.Fatalf("WriteJSON: %v", err)
 	}
-	entries, _ := os.ReadDir(s.Dir())
+	entries, err := os.ReadDir(storeDir)
+	if err != nil {
+		t.Fatalf("os.ReadDir: %v", err)
+	}
 	for _, e := range entries {
 		if e.Name() != "data.json" {
 			t.Errorf("unexpected file %s in store dir", e.Name())
@@ -61,16 +66,8 @@ func TestWriteJSONAtomic(t *testing.T) {
 	}
 }
 
-func TestDir(t *testing.T) {
-	dir := t.TempDir()
-	s, _ := storage.NewFileStoreAt(dir)
-	if s.Dir() != dir {
-		t.Errorf("Dir() = %q, want %q", s.Dir(), dir)
-	}
-}
-
 func TestWriteJSONOverwrite(t *testing.T) {
-	s := newTestStore(t)
+	s, _ := newTestStore(t)
 	if err := s.WriteJSON("d.json", map[string]int{"v": 1}); err != nil {
 		t.Fatal(err)
 	}
@@ -87,21 +84,23 @@ func TestWriteJSONOverwrite(t *testing.T) {
 }
 
 func TestNewFileStore(t *testing.T) {
-	// Use XDG_CONFIG_HOME override to avoid polluting the real home dir.
 	tmp := t.TempDir()
 	t.Setenv("XDG_CONFIG_HOME", tmp)
 	s, err := storage.NewFileStore()
 	if err != nil {
 		t.Fatalf("NewFileStore: %v", err)
 	}
-	want := filepath.Join(tmp, "odoo-attendance-app")
-	if s.Dir() != want {
-		t.Errorf("Dir() = %q, want %q", s.Dir(), want)
+	if err := s.WriteJSON("check.json", map[string]string{"ok": "true"}); err != nil {
+		t.Fatalf("WriteJSON: %v", err)
+	}
+	target := filepath.Join(tmp, "odoo-attendance-app", "check.json")
+	if _, err := os.Stat(target); err != nil {
+		t.Errorf("expected file at %s: %v", target, err)
 	}
 }
 
 func TestStorage_PathTraversalPrevention(t *testing.T) {
-	s := newTestStore(t)
+	s, _ := newTestStore(t)
 	traversalNames := []string{
 		"../test.json",
 		"../../etc/passwd",
@@ -131,12 +130,12 @@ func TestStorage_PathTraversalPrevention(t *testing.T) {
 }
 
 func TestStorage_FilePermissions(t *testing.T) {
-	s := newTestStore(t)
+	s, storeDir := newTestStore(t)
 	if err := s.WriteJSON("secure.json", map[string]string{"secret": "val"}); err != nil {
 		t.Fatalf("WriteJSON: %v", err)
 	}
 
-	path := filepath.Join(s.Dir(), "secure.json")
+	path := filepath.Join(storeDir, "secure.json")
 	fi, err := os.Stat(path)
 	if err != nil {
 		t.Fatalf("stat: %v", err)
@@ -150,11 +149,11 @@ func TestStorage_FilePermissions(t *testing.T) {
 }
 
 func TestStorage_SymlinkProtection(t *testing.T) {
-	s := newTestStore(t)
+	s, storeDir := newTestStore(t)
 	targetPath := filepath.Join(t.TempDir(), "target.json")
 	_ = os.WriteFile(targetPath, []byte(`{"initial":"data"}`), 0600)
 
-	symlinkPath := filepath.Join(s.Dir(), "link.json")
+	symlinkPath := filepath.Join(storeDir, "link.json")
 	if err := os.Symlink(targetPath, symlinkPath); err != nil {
 		t.Fatalf("failed to create test symlink: %v", err)
 	}

@@ -34,7 +34,7 @@ func (n *DBusNotifier) Notify(title, body string) error {
 	}
 	obj := conn.Object("org.freedesktop.Notifications", "/org/freedesktop/Notifications")
 	call := obj.Call("org.freedesktop.Notifications.Notify", 0,
-		"Odoo Attendance App",      // app_name
+		"Odoo Attendance App",     // app_name
 		uint32(0),                 // replaces_id
 		"",                        // app_icon
 		title,                     // summary

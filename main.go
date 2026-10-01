@@ -75,15 +75,11 @@ func main() {
 		},
 	})
 
-
 	// ── Window 1: Main App Window (Maximised) ───────────────────────────────
 	mainWin := app.Window.NewWithOptions(application.WebviewWindowOptions{
 		Title:            "Odoo Attendance App",
 		Name:             "main",
-		StartState:       application.WindowStateNormal,
-		Width:            1024,
-		Height:           768,
-		Hidden:           true,
+		Hidden:           false,
 		HideOnEscape:     true,
 		URL:              "/",
 		BackgroundColour: application.NewRGBA(28, 22, 34, 255),
@@ -97,9 +93,6 @@ func main() {
 	checkoutWin := app.Window.NewWithOptions(application.WebviewWindowOptions{
 		Title:            "Odoo Attendance App - Check Out",
 		Name:             "checkout",
-		StartState:       application.WindowStateNormal,
-		Width:            1024,
-		Height:           768,
 		Hidden:           true,
 		HideOnEscape:     true,
 		URL:              "/?window=checkout",

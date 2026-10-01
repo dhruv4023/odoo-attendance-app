@@ -69,8 +69,29 @@ runs:
           EXTRA_TAGS_ARG="EXTRA_TAGS=${{ inputs.extra-tags }}"
         fi
         task linux:build $EXTRA_TAGS_ARG OUTPUT="bin/${{ inputs.build-name }}"
-        rm -f bin/odoo-attendance-app
         chmod +x "bin/${{ inputs.build-name }}"
+
+        # Prepare binary for DEB packaging
+        cp "bin/${{ inputs.build-name }}" bin/odoo-attendance-app
+
+        # Adjust DEB package dependencies for gtk3 builds (Ubuntu 22.04 / Debian 12)
+        if [[ "${{ inputs.extra-tags }}" == *"gtk3"* ]]; then
+          sed -i 's/libgtk-4-1/libgtk-3-0/g' ./build/linux/nfpm/nfpm.yaml
+          sed -i 's/libwebkitgtk-6.0-4/libwebkit2gtk-4.1-0/g' ./build/linux/nfpm/nfpm.yaml
+        fi
+
+        task linux:generate:dotdesktop
+        task linux:generate:deb
+
+        # Rename generated .deb to match build flavor
+        if [ -f "bin/odoo-attendance-app.deb" ]; then
+          mv "bin/odoo-attendance-app.deb" "bin/${{ inputs.build-name }}.deb"
+        elif compgen -G "bin/odoo-attendance-app*.deb" > /dev/null; then
+          mv bin/odoo-attendance-app*.deb "bin/${{ inputs.build-name }}.deb"
+        fi
+
+        # Restore original nfpm.yaml
+        git checkout -- ./build/linux/nfpm/nfpm.yaml 2>/dev/null || true
 
     - name: Run Tests
       shell: bash
@@ -81,12 +102,16 @@ runs:
       uses: actions/upload-artifact@v4
       with:
         name: ${{ inputs.build-name }}
-        path: bin/${{ inputs.build-name }}
+        path: |
+          bin/${{ inputs.build-name }}
+          bin/${{ inputs.build-name }}.deb
 
     - name: Create Release
       if: inputs.package == 'true' && startsWith(github.ref, 'refs/tags/')
       uses: softprops/action-gh-release@v2
       with:
-        files: bin/${{ inputs.build-name }}
+        files: |
+          bin/${{ inputs.build-name }}
+          bin/${{ inputs.build-name }}.deb
       env:
         GITHUB_TOKEN: ${{ inputs.token }}

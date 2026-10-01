@@ -19,7 +19,8 @@ func (c *fakeClock) Now() time.Time { return c.now }
 func newTestManager(t *testing.T, now time.Time) (*attendance.Manager, *storage.FileStore) {
 	t.Helper()
 	dir := t.TempDir()
-	store, err := storage.NewFileStoreAt(dir)
+	t.Setenv("XDG_CONFIG_HOME", dir)
+	store, err := storage.NewFileStore()
 	if err != nil {
 		t.Fatalf("store: %v", err)
 	}
@@ -97,7 +98,8 @@ func TestCheckOut_Duplicate(t *testing.T) {
 func TestResetIfNewDay(t *testing.T) {
 	clock := &fakeClock{now: monday()}
 	dir := t.TempDir()
-	store, _ := storage.NewFileStoreAt(dir)
+	t.Setenv("XDG_CONFIG_HOME", dir)
+	store, _ := storage.NewFileStore()
 	m, _ := attendance.NewManager(store, clock)
 
 	m.CheckIn()
@@ -119,16 +121,17 @@ func TestResetIfNewDay(t *testing.T) {
 
 func TestPersistenceAcrossRestart(t *testing.T) {
 	dir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", dir)
 	now := monday()
 
 	// First instance: check in.
-	store1, _ := storage.NewFileStoreAt(dir)
+	store1, _ := storage.NewFileStore()
 	clock := &fakeClock{now: now}
 	m1, _ := attendance.NewManager(store1, clock)
 	m1.CheckIn()
 
 	// Second instance: should restore state.
-	store2, _ := storage.NewFileStoreAt(dir)
+	store2, _ := storage.NewFileStore()
 	m2, err := attendance.NewManager(store2, clock)
 	if err != nil {
 		t.Fatalf("NewManager (restart): %v", err)
@@ -140,18 +143,19 @@ func TestPersistenceAcrossRestart(t *testing.T) {
 
 func TestDailyReset_PersistenceAcrossRestart(t *testing.T) {
 	dir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", dir)
 	monday := time.Date(2026, 9, 14, 9, 0, 0, 0, time.Local)
 	tuesday := monday.AddDate(0, 0, 1)
 
 	// Monday: check in.
-	store, _ := storage.NewFileStoreAt(dir)
+	store, _ := storage.NewFileStore()
 	clock := &fakeClock{now: monday}
 	m, _ := attendance.NewManager(store, clock)
 	m.CheckIn()
 
 	// Restart on Tuesday.
 	clock.now = tuesday
-	store2, _ := storage.NewFileStoreAt(dir)
+	store2, _ := storage.NewFileStore()
 	m2, _ := attendance.NewManager(store2, clock)
 
 	s := m2.GetStatus()
@@ -220,7 +224,8 @@ func TestMultipleCheckInsAndCheckOuts(t *testing.T) {
 func TestLastLogTime_And_HasRecentLog(t *testing.T) {
 	clock := &fakeClock{now: monday()}
 	dir := t.TempDir()
-	store, _ := storage.NewFileStoreAt(dir)
+	t.Setenv("XDG_CONFIG_HOME", dir)
+	store, _ := storage.NewFileStore()
 	m, _ := attendance.NewManager(store, clock)
 
 	// No logs initially

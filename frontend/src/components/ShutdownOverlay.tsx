@@ -86,7 +86,7 @@ export const ShutdownOverlay: React.FC<ShutdownOverlayProps> = ({ isOpen, action
             <LogOut className="w-5 h-5 text-white" />
           </div>
           <span className="font-bold text-sm tracking-tight text-white">
-            Odoo Attendance App
+            Attendance Reminder
           </span>
         </div>
 
@@ -115,7 +115,7 @@ export const ShutdownOverlay: React.FC<ShutdownOverlayProps> = ({ isOpen, action
             Did you check out in Odoo?
           </h2>
           <p className="text-xs text-[#cfc9d6] leading-relaxed mb-6 max-w-sm">
-            You are {actionLabel}. No recent check-out was recorded.
+            You are {actionLabel}.
           </p>
 
           <div className="flex flex-col gap-3 w-full">
@@ -137,7 +137,7 @@ export const ShutdownOverlay: React.FC<ShutdownOverlayProps> = ({ isOpen, action
                 type="button"
                 onClick={handleCancel}
                 disabled={loading}
-                className="flex-1 inline-flex items-center justify-center py-2.5 px-3 rounded-xl font-semibold text-xs bg-[#342b3e] hover:bg-[#3f344c] active:scale-98 disabled:opacity-50 text-[#f8f7f9] border border-[#4a3c57] transition-all cursor-pointer"
+                className="flex-1 inline-flex items-center justify-center py-3 px-3.5 rounded-xl font-semibold text-xs sm:text-[13px] bg-[#342b3e] hover:bg-[#3f344c] active:scale-98 disabled:opacity-50 text-[#f8f7f9] border border-[#4a3c57] transition-all cursor-pointer shadow-sm"
               >
                 <span>Stay Logged In</span>
               </button>
@@ -146,10 +146,10 @@ export const ShutdownOverlay: React.FC<ShutdownOverlayProps> = ({ isOpen, action
                 type="button"
                 onClick={handleSkip}
                 disabled={loading}
-                className="inline-flex items-center justify-center gap-1 py-2.5 px-4 rounded-xl font-medium text-xs bg-[#1c1722] hover:bg-[#2e2638] active:scale-98 disabled:opacity-50 text-[#cfc9d6] hover:text-white border border-[#3d3248] transition-all cursor-pointer"
+                className="inline-flex items-center justify-center gap-1.5 py-3 px-4 rounded-xl font-medium text-xs sm:text-[13px] bg-[#1c1722] hover:bg-[#2e2638] active:scale-98 disabled:opacity-50 text-[#cfc9d6] hover:text-white border border-[#3d3248] transition-all cursor-pointer shadow-sm"
               >
                 <span>Skip & Log Out</span>
-                <ArrowRight className="w-3 h-3 shrink-0" />
+                <ArrowRight className="w-3.5 h-3.5 shrink-0" />
               </button>
             </div>
           </div>
@@ -160,7 +160,7 @@ export const ShutdownOverlay: React.FC<ShutdownOverlayProps> = ({ isOpen, action
       <footer className="w-full px-8 py-4 flex items-center justify-between text-[11px] text-[#7e748c] font-mono z-10">
         <div className="flex items-center gap-1.5">
           <ShieldAlert className="w-3.5 h-3.5 text-[#8b5185]" />
-          <span>Session protection active · Logout & power-off are monitored</span>
+          <span>  Logout & power-off are monitored</span>
         </div>
         <span>Escape to stay logged in</span>
       </footer>

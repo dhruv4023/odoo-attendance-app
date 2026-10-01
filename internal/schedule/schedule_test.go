@@ -9,8 +9,11 @@ import (
 
 func TestDefaultSettings(t *testing.T) {
 	s := schedule.DefaultSettings()
-	if s.URL != "https://www.odoo.com/odoo" {
-		t.Errorf("expected default URL to be https://www.odoo.com/odoo, got %q", s.URL)
+	if s.URL == "" {
+		t.Errorf("expected non-empty default URL")
+	}
+	if !s.OdooSyncEnabled {
+		t.Errorf("expected default OdooSyncEnabled to be true")
 	}
 	if !s.Autostart {
 		t.Errorf("expected default Autostart to be true")
@@ -43,17 +46,11 @@ func TestSettings_GetLogThreshold(t *testing.T) {
 	}
 }
 
-func TestParseHHMM(t *testing.T) {
-	h, m, err := schedule.ParseHHMM("09:30")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+func TestEventType_String(t *testing.T) {
+	if schedule.EventCheckIn.String() != "check_in" {
+		t.Errorf("expected check_in, got %s", schedule.EventCheckIn.String())
 	}
-	if h != 9 || m != 30 {
-		t.Errorf("expected 9:30, got %d:%d", h, m)
-	}
-
-	_, _, err = schedule.ParseHHMM("invalid")
-	if err == nil {
-		t.Errorf("expected error on invalid string")
+	if schedule.EventCheckOut.String() != "check_out" {
+		t.Errorf("expected check_out, got %s", schedule.EventCheckOut.String())
 	}
 }

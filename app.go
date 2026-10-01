@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log"
@@ -15,6 +16,8 @@ import (
 	"odoo-attendance-app/internal/attendance"
 	"odoo-attendance-app/internal/launcher"
 	"odoo-attendance-app/internal/lifecycle"
+	"odoo-attendance-app/internal/notification"
+	"odoo-attendance-app/internal/odoo"
 	"odoo-attendance-app/internal/schedule"
 	"odoo-attendance-app/internal/storage"
 )
@@ -91,6 +94,13 @@ type AppService struct {
 	lifecycle      *lifecycle.LinuxLifecycleManager
 	urlLauncher    launcher.URLLauncher
 	wailsApp       *application.App
+	odooClient     *odoo.Client
+	notifier       notification.Notifier
+
+	reminderCancel context.CancelFunc
+
+	odooSyncPending bool
+	lastOdooStatus  *odoo.OdooStatus
 
 	mu sync.Mutex
 }
@@ -142,7 +152,6 @@ func (a *AppService) Startup(app *application.App) error {
 	// Lifecycle (login / logout / shutdown interception via D-Bus logind and session managers)
 	lm := lifecycle.NewLinuxLifecycleManager(emitter)
 	lm.SetCheckInPromptChecker(func() bool {
-		// Only prompt check-in dialog on login if the user has not checked in today.
 		return !a.attendance.IsCheckedIn()
 	})
 	lm.SetPromptChecker(func() bool {
@@ -154,9 +163,6 @@ func (a *AppService) Startup(app *application.App) error {
 	if err := lm.Start(); err != nil {
 		log.Printf("startup: lifecycle: %v (lifecycle interception may be unavailable)", err)
 	}
-
-	// Midnight reset loop in background (for 24/7 always-on machines).
-	go a.midnightResetLoop()
 
 	// Emit initial status once the windows are ready.
 	go func() {
@@ -170,6 +176,19 @@ func (a *AppService) Startup(app *application.App) error {
 			log.Printf("startup: autostart enable: %v", err)
 		}
 	}
+
+	// Notifications
+	a.notifier = notification.NewBestNotifier()
+
+	// Initial Odoo sync in background if configured
+	if a.settings.OdooSyncEnabled && a.odooClient != nil {
+		go func() {
+			_, _ = a.SyncOdooStatus()
+		}()
+	}
+
+	// Start check-in reminder notifications if last check-in/out is not today
+	a.startCheckInReminderLoop()
 
 	return nil
 }
@@ -205,32 +224,25 @@ func (e *showWindowEmitter) Emit(name string, data ...interface{}) {
 
 // Shutdown is called by Wails when app.Quit() is invoked.
 func (a *AppService) Shutdown() {
+	a.stopCheckInReminderLoop()
 	if a.lifecycle != nil {
 		a.lifecycle.Stop()
 	}
 }
 
-// midnightResetLoop sleeps until midnight to roll over the day and notify the UI (for 24/7 always-on machines).
-func (a *AppService) midnightResetLoop() {
-	for {
-		now := time.Now()
-		nextMidnight := time.Date(now.Year(), now.Month(), now.Day()+1, 0, 0, 1, 0, now.Location())
-		sleepDuration := time.Until(nextMidnight)
-		if sleepDuration <= 0 {
-			sleepDuration = time.Second
-		}
-
-		time.Sleep(sleepDuration)
-
-		if err := a.attendance.ResetIfNewDay(); err != nil {
-			log.Printf("midnightReset: %v", err)
-		}
-		if a.lifecycle != nil {
-			a.lifecycle.ResetLoginReminder()
-			a.lifecycle.ArmInhibitors()
-		}
-		a.emitter.Emit("status-changed", a.attendance.GetStatus())
+func parseOdooTimestamp(val interface{}) (time.Time, bool) {
+	s, ok := val.(string)
+	if !ok || s == "" {
+		return time.Time{}, false
 	}
+	t, err := time.Parse("2006-01-02 15:04:05", s)
+	if err != nil {
+		t, err = time.Parse(time.RFC3339, s)
+		if err != nil {
+			return time.Time{}, false
+		}
+	}
+	return time.Date(t.Year(), t.Month(), t.Day(), t.Hour(), t.Minute(), t.Second(), 0, time.UTC).Local(), true
 }
 
 // loadSettings reads settings from disk, applying defaults for missing fields.
@@ -247,9 +259,16 @@ func (a *AppService) loadSettings() {
 		s = schedule.DefaultSettings()
 	}
 	if s.LogThresholdMinutes < 0 {
-		s.LogThresholdMinutes = 3
+		s.LogThresholdMinutes = 0
 	}
 	a.settings = s
+	if s.OdooSyncEnabled && s.URL != "" && s.APIKey != "" {
+		client := odoo.NewClient(s.URL, s.APIKey)
+		client.SetCachedIDs(s.UserID, s.EmployeeID)
+		a.odooClient = client
+	} else {
+		a.odooClient = nil
+	}
 }
 
 // ── Wails-bound API ──────────────────────────────────────────────────────────
@@ -289,12 +308,36 @@ func (a *AppService) SaveSettings(s schedule.Settings) error {
 		}
 	}
 	if s.LogThresholdMinutes < 0 {
-		s.LogThresholdMinutes = 3
+		s.LogThresholdMinutes = 0
 	}
+
+	// If APIKey or URL changed, invalidate cached IDs so fresh ones are resolved
+	if s.APIKey != a.settings.APIKey || s.URL != a.settings.URL {
+		s.UserID = 0
+		s.EmployeeID = 0
+		s.EmployeeName = ""
+	} else {
+		s.UserID = a.settings.UserID
+		s.EmployeeID = a.settings.EmployeeID
+		s.EmployeeName = a.settings.EmployeeName
+	}
+
 	if err := a.store.WriteJSON(settingsFile, s); err != nil {
 		return err
 	}
 	a.settings = s
+
+	if s.OdooSyncEnabled && s.URL != "" && s.APIKey != "" {
+		client := odoo.NewClient(s.URL, s.APIKey)
+		client.SetCachedIDs(s.UserID, s.EmployeeID)
+		a.odooClient = client
+		go a.SyncOdooStatus()
+	} else {
+		a.odooClient = nil
+		a.emitter.Emit("odoo-status-changed", &odoo.OdooStatus{
+			Connected: false,
+		})
+	}
 
 	// Autostart — use Wails v3 built-in.
 	if a.wailsApp != nil {
@@ -312,6 +355,7 @@ func (a *AppService) SaveSettings(s schedule.Settings) error {
 	if a.lifecycle != nil {
 		a.lifecycle.ArmInhibitors()
 	}
+
 	return nil
 }
 
@@ -323,14 +367,106 @@ func (a *AppService) GetURL() string {
 // SaveURL updates only the URL portion of settings.
 func (a *AppService) SaveURL(url string) error {
 	return a.SaveSettings(schedule.Settings{
-		URL:       url,
-		Autostart: a.settings.Autostart,
+		URL:                 url,
+		APIKey:              a.settings.APIKey,
+		OdooSyncEnabled:     a.settings.OdooSyncEnabled,
+		Autostart:           a.settings.Autostart,
+		LogThresholdMinutes: a.settings.LogThresholdMinutes,
 	})
 }
 
 // GetTodayStatus returns today's attendance status.
 func (a *AppService) GetTodayStatus() attendance.DailyStatus {
 	return a.attendance.GetStatus()
+}
+
+// fetches live employee attendance from Odoo and synchronizes status and logs.
+// If a sync call is already pending, concurrent calls are skipped and current status is returned.
+func (a *AppService) SyncOdooStatus() (*odoo.OdooStatus, error) {
+	if !a.settings.OdooSyncEnabled || a.odooClient == nil || a.settings.URL == "" || a.settings.APIKey == "" {
+		return nil, errors.New("odoo: live sync is disabled or credentials not configured")
+	}
+
+	a.mu.Lock()
+	if a.odooSyncPending {
+		cached := a.lastOdooStatus
+		a.mu.Unlock()
+		return cached, nil
+	}
+	a.odooSyncPending = true
+	a.mu.Unlock()
+
+	defer func() {
+		a.mu.Lock()
+		a.odooSyncPending = false
+		a.mu.Unlock()
+	}()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	status, err := a.odooClient.FetchStatus(ctx)
+	if err != nil {
+		log.Printf("SyncOdooStatus: %v", err)
+		return status, err
+	}
+
+	a.mu.Lock()
+	a.lastOdooStatus = status
+	a.mu.Unlock()
+
+	// If resolved UserID/EmployeeID changed or newly discovered, cache them to settings.json
+	if status.UserID != a.settings.UserID || status.EmployeeID != a.settings.EmployeeID || status.EmployeeName != a.settings.EmployeeName {
+		a.settings.UserID = status.UserID
+		a.settings.EmployeeID = status.EmployeeID
+		a.settings.EmployeeName = status.EmployeeName
+		if werr := a.store.WriteJSON(settingsFile, a.settings); werr != nil {
+			log.Printf("SyncOdooStatus: cache settings: %v", werr)
+		}
+	}
+
+	isCheckedIn := status.AttendanceState == "checked_in"
+	_ = a.attendance.SyncFromOdoo(status.EmployeeName, status.EmployeeID, isCheckedIn, nil)
+	if isCheckedIn {
+		a.stopCheckInReminderLoop()
+	}
+	a.emitter.Emit("status-changed", a.attendance.GetStatus())
+	a.emitter.Emit("odoo-status-changed", status)
+
+	return status, nil
+}
+
+// GetOdooStatus returns the live or cached Odoo status.
+func (a *AppService) GetOdooStatus() (*odoo.OdooStatus, error) {
+	if !a.settings.OdooSyncEnabled {
+		return &odoo.OdooStatus{Connected: false}, nil
+	}
+	a.mu.Lock()
+	if a.odooSyncPending && a.lastOdooStatus != nil {
+		cached := a.lastOdooStatus
+		a.mu.Unlock()
+		return cached, nil
+	}
+	a.mu.Unlock()
+	return a.SyncOdooStatus()
+}
+
+// // GetOdooLogs retrieves the recent attendance logs from Odoo for the logs modal (1 request).
+// func (a *AppService) GetOdooLogs(limit int) ([]odoo.AttendanceRecord, error) {
+// 	if !a.settings.OdooSyncEnabled || a.odooClient == nil || a.settings.EmployeeID <= 0 {
+// 		return nil, errors.New("odoo: live sync is not active or employee not resolved")
+// 	}
+// 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+// 	defer cancel()
+// 	return a.odooClient.GetRecentAttendances(ctx, a.settings.EmployeeID, limit)
+// }
+
+// TestOdooConnection tests connection with given Odoo server and API key without saving.
+func (a *AppService) TestOdooConnection(odooURL, apiKey string) (*odoo.OdooStatus, error) {
+	client := odoo.NewClient(odooURL, apiKey)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	return client.FetchStatus(ctx)
 }
 
 // ShowWindow shows and focuses the main application window maximised.
@@ -384,18 +520,20 @@ func (a *AppService) HideSettingsWindow() {
 	a.HideWindow()
 }
 
-// CheckIn records check-in and opens the configured URL, then closes the window to the system tray.
+// CheckIn records check-in directly in Odoo (and local state) and opens configured URL.
 func (a *AppService) CheckIn() CheckResult {
-	if err := a.attendance.CheckIn(); err != nil {
-		if errors.Is(err, attendance.ErrAlreadyCheckedIn) {
-			// Already checked in — still open attendance URL if configured
-			if a.settings.URL != "" {
-				_ = a.urlLauncher.Open(a.settings.URL)
+	a.stopCheckInReminderLoop()
+	if !(a.settings.OdooSyncEnabled && a.odooClient != nil && a.settings.URL != "" && a.settings.APIKey != "") {
+		if err := a.attendance.CheckIn(); err != nil {
+			if errors.Is(err, attendance.ErrAlreadyCheckedIn) {
+				if a.settings.URL != "" {
+					_ = a.urlLauncher.Open(a.settings.URL)
+				}
+				a.HideWindow()
+				return CheckResult{OK: true, Message: "Already checked in today."}
 			}
-			a.HideWindow()
-			return CheckResult{OK: true, Message: "Already checked in today."}
+			return CheckResult{OK: false, Message: err.Error()}
 		}
-		return CheckResult{OK: false, Message: err.Error()}
 	}
 
 	a.emitter.Emit("status-changed", a.attendance.GetStatus())
@@ -407,30 +545,76 @@ func (a *AppService) CheckIn() CheckResult {
 		urlErr := a.urlLauncher.Open(a.settings.URL)
 		if urlErr != nil {
 			log.Printf("CheckIn: open URL: %v", urlErr)
-			a.HideWindow()
 			return CheckResult{
 				OK:      true,
 				Message: "Check-in recorded, but the attendance page could not be opened: " + urlErr.Error(),
 			}
 		}
+		a.postRedirect("checked_in")
 	}
 
-	a.HideWindow()
 	return CheckResult{OK: true}
 }
 
-// CheckOut records check-out and opens the configured URL.
-func (a *AppService) CheckOut() CheckResult {
-	if err := a.attendance.CheckOut(); err != nil {
-		if errors.Is(err, attendance.ErrAlreadyCheckedOut) || errors.Is(err, attendance.ErrNotCheckedIn) {
-			_ = a.attendance.ForceCheckOut()
-			a.emitter.Emit("status-changed", a.attendance.GetStatus())
-			if a.settings.URL != "" {
-				_ = a.urlLauncher.Open(a.settings.URL)
-			}
-			return CheckResult{OK: true}
+func (a *AppService) postRedirect(expectedState string) {
+	if !a.settings.OdooSyncEnabled {
+		return
+	}
+
+	go func() {
+		// Attempt 1: Check after 30 seconds
+		time.Sleep(30 * time.Second)
+
+		// Check if user has already manually synced and reached expected state
+		a.mu.Lock()
+		if a.lastOdooStatus != nil && (expectedState == "" || a.lastOdooStatus.AttendanceState == expectedState) {
+			a.mu.Unlock()
+			log.Println("postRedirect: Expected state already reached via cached/manual sync")
+			return
 		}
-		return CheckResult{OK: false, Message: err.Error()}
+		a.mu.Unlock()
+
+		status, _ := a.SyncOdooStatus()
+		a.emitter.Emit("status-changed", a.attendance.GetStatus())
+
+		// If status reached the expected state, finish
+		if status != nil && (expectedState == "" || status.AttendanceState == expectedState) {
+			log.Println("postRedirect: Status reached expected state on attempt 1")
+			return
+		}
+		log.Println("postRedirect: Status not reached expected state on attempt 1, waiting 45s for retry")
+
+		// Attempt 2: If not updated, wait another 45 seconds and check once more
+		time.Sleep(45 * time.Second)
+
+		// Check if user manually synced during the 45s wait
+		a.mu.Lock()
+		if a.lastOdooStatus != nil && (expectedState == "" || a.lastOdooStatus.AttendanceState == expectedState) {
+			a.mu.Unlock()
+			log.Println("postRedirect: Expected state already reached before attempt 2")
+			return
+		}
+		a.mu.Unlock()
+
+		_, _ = a.SyncOdooStatus()
+		a.emitter.Emit("status-changed", a.attendance.GetStatus())
+	}()
+}
+
+// CheckOut records check-out directly in Odoo (and local state) and opens configured URL.
+func (a *AppService) CheckOut() CheckResult {
+	if !(a.settings.OdooSyncEnabled && a.odooClient != nil && a.settings.URL != "" && a.settings.APIKey != "") {
+		if err := a.attendance.CheckOut(); err != nil {
+			if errors.Is(err, attendance.ErrAlreadyCheckedOut) || errors.Is(err, attendance.ErrNotCheckedIn) {
+				_ = a.attendance.ForceCheckOut()
+				a.emitter.Emit("status-changed", a.attendance.GetStatus())
+				if a.settings.URL != "" {
+					_ = a.urlLauncher.Open(a.settings.URL)
+				}
+				return CheckResult{OK: true}
+			}
+			return CheckResult{OK: false, Message: err.Error()}
+		}
 	}
 
 	a.emitter.Emit("status-changed", a.attendance.GetStatus())
@@ -444,6 +628,7 @@ func (a *AppService) CheckOut() CheckResult {
 				Message: "Check-out recorded, but the attendance page could not be opened: " + urlErr.Error(),
 			}
 		}
+		a.postRedirect("checked_out")
 	}
 	return CheckResult{OK: true}
 }
@@ -540,4 +725,66 @@ func (a *AppService) GetAppExecutablePath() string {
 		return exe
 	}
 	return resolved
+}
+
+// startCheckInReminderLoop starts a background loop that sends a check-in reminder
+// notification every 5 minutes up to 6 times if the user has not checked in or recorded activity today.
+func (a *AppService) startCheckInReminderLoop() {
+	a.mu.Lock()
+	if a.reminderCancel != nil {
+		a.reminderCancel()
+		a.reminderCancel = nil
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	a.reminderCancel = cancel
+	a.mu.Unlock()
+
+	go func() {
+		// Allow startup and initial sync to finish before checking
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(3 * time.Second):
+		}
+
+		if a.attendance == nil || a.attendance.IsCheckedIn() || a.attendance.HasActivityToday() {
+			return
+		}
+
+		const maxCount = 6
+		ticker := time.NewTicker(5 * time.Minute)
+		defer ticker.Stop()
+
+		for count := 0; count < maxCount; count++ {
+			if a.attendance == nil || a.attendance.IsCheckedIn() || a.attendance.HasActivityToday() {
+				return
+			}
+
+			if a.notifier != nil {
+				if err := a.notifier.Notify("Check-in Reminder", "You haven't checked in today. Please remember to record your attendance."); err != nil {
+					log.Printf("reminder notification (%d/%d): %v", count+1, maxCount, err)
+				} else {
+					log.Printf("reminder notification sent (%d/%d)", count+1, maxCount)
+				}
+			}
+
+			if count < maxCount-1 {
+				select {
+				case <-ctx.Done():
+					return
+				case <-ticker.C:
+				}
+			}
+		}
+	}()
+}
+
+// stopCheckInReminderLoop stops any running check-in reminder notification loop.
+func (a *AppService) stopCheckInReminderLoop() {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.reminderCancel != nil {
+		a.reminderCancel()
+		a.reminderCancel = nil
+	}
 }

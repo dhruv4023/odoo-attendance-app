@@ -1,4 +1,3 @@
-// Package storage provides atomic JSON persistence in the XDG config directory.
 package storage
 
 import (
@@ -15,14 +14,11 @@ type Store interface {
 	ReadJSON(name string, v interface{}) error
 	// WriteJSON encodes v as JSON and atomically writes it to the named file.
 	WriteJSON(name string, v interface{}) error
-	// Dir returns the storage directory path.
-	Dir() string
 }
 
 // ErrNotFound is returned by ReadJSON when the file does not exist.
 var ErrNotFound = errors.New("storage: file not found")
 
-// FileStore is a Store backed by the XDG config home directory.
 type FileStore struct {
 	dir string
 }
@@ -45,18 +41,6 @@ func NewFileStore() (*FileStore, error) {
 	return &FileStore{dir: dir}, nil
 }
 
-// NewFileStoreAt creates a FileStore rooted at the given directory. Used in tests.
-func NewFileStoreAt(dir string) (*FileStore, error) {
-	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return nil, fmt.Errorf("storage: cannot create dir %s: %w", dir, err)
-	}
-	return &FileStore{dir: dir}, nil
-}
-
-// Dir returns the storage directory.
-func (s *FileStore) Dir() string { return s.dir }
-
-// ErrInvalidFileName is returned when a storage filename is invalid or attempts path traversal.
 var ErrInvalidFileName = errors.New("storage: invalid file name")
 
 func validateFileName(name string) error {
@@ -66,7 +50,6 @@ func validateFileName(name string) error {
 	return nil
 }
 
-// ReadJSON reads and decodes a named JSON file.
 func (s *FileStore) ReadJSON(name string, v interface{}) error {
 	if err := validateFileName(name); err != nil {
 		return err
@@ -85,8 +68,6 @@ func (s *FileStore) ReadJSON(name string, v interface{}) error {
 	return nil
 }
 
-// WriteJSON atomically encodes and writes a named JSON file.
-// It writes to a temp file first, then renames to ensure atomicity.
 func (s *FileStore) WriteJSON(name string, v interface{}) error {
 	if err := validateFileName(name); err != nil {
 		return err
@@ -118,7 +99,6 @@ func (s *FileStore) WriteJSON(name string, v interface{}) error {
 
 	dest := filepath.Join(s.dir, name)
 
-	// Avoid following unexpected symlinks on destination file
 	if fi, err := os.Lstat(dest); err == nil {
 		if fi.Mode()&os.ModeSymlink != 0 {
 			_ = os.Remove(dest)
