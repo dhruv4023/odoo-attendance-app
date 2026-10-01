@@ -264,7 +264,7 @@ func (a *AppService) loadSettings() {
 	a.settings = s
 	if s.OdooSyncEnabled && s.URL != "" && s.APIKey != "" {
 		client := odoo.NewClient(s.URL, s.APIKey)
-		client.SetCachedIDs(s.UserID, s.EmployeeID)
+		client.SetCachedIDs(s.UserID, s.EmployeeID, s.EmployeeName)
 		a.odooClient = client
 	} else {
 		a.odooClient = nil
@@ -312,7 +312,7 @@ func (a *AppService) SaveSettings(s schedule.Settings) error {
 	}
 
 	// If APIKey or URL changed, invalidate cached IDs so fresh ones are resolved
-	if s.APIKey != a.settings.APIKey || s.URL != a.settings.URL {
+	if s.APIKey != a.settings.APIKey || s.URL != a.settings.URL || !s.OdooSyncEnabled {
 		s.UserID = 0
 		s.EmployeeID = 0
 		s.EmployeeName = ""
@@ -329,14 +329,22 @@ func (a *AppService) SaveSettings(s schedule.Settings) error {
 
 	if s.OdooSyncEnabled && s.URL != "" && s.APIKey != "" {
 		client := odoo.NewClient(s.URL, s.APIKey)
-		client.SetCachedIDs(s.UserID, s.EmployeeID)
+		client.SetCachedIDs(s.UserID, s.EmployeeID, s.EmployeeName)
 		a.odooClient = client
 		go a.SyncOdooStatus()
 	} else {
 		a.odooClient = nil
-		a.emitter.Emit("odoo-status-changed", &odoo.OdooStatus{
-			Connected: false,
-		})
+		a.mu.Lock()
+		a.lastOdooStatus = &odoo.OdooStatus{
+			Connected:    false,
+			EmployeeName: "",
+			EmployeeID:   0,
+			UserID:       0,
+		}
+		a.mu.Unlock()
+		_ = a.attendance.SyncFromOdoo("", 0, false, nil)
+		a.emitter.Emit("odoo-status-changed", a.lastOdooStatus)
+		a.emitter.Emit("status-changed", a.attendance.GetStatus())
 	}
 
 	// Autostart — use Wails v3 built-in.

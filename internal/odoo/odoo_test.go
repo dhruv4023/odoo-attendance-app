@@ -21,7 +21,7 @@ func TestClient_FetchStatus(t *testing.T) {
 			_ = json.NewEncoder(w).Encode(map[string]interface{}{
 				"uid": 2,
 			})
-		case "/json/2/hr.employee/search_read":
+		case "/json/2/hr.employee/search_read", "/json/2/hr.employee.public/search_read":
 			_ = json.NewEncoder(w).Encode([]map[string]interface{}{
 				{
 					"id":               105,
@@ -30,6 +30,15 @@ func TestClient_FetchStatus(t *testing.T) {
 					"last_check_in":    "2026-09-24 05:30:00",
 					"last_check_out":   false,
 					"hours_today":      2.5,
+				},
+			})
+		case "/json/2/hr.attendance/search_read":
+			_ = json.NewEncoder(w).Encode([]map[string]interface{}{
+				{
+					"id":           201,
+					"check_in":     "2026-09-24 05:30:00",
+					"check_out":    false,
+					"worked_hours": 0.0,
 				},
 			})
 		default:
@@ -56,9 +65,6 @@ func TestClient_FetchStatus(t *testing.T) {
 	if status.LastCheckIn != "2026-09-24 05:30:00" {
 		t.Errorf("expected LastCheckIn='2026-09-24 05:30:00', got %q", status.LastCheckIn)
 	}
-	if status.HoursToday != 2.5 {
-		t.Errorf("expected HoursToday=2.5, got %f", status.HoursToday)
-	}
 }
 
 func TestClient_FetchStatus_Cached(t *testing.T) {
@@ -70,7 +76,7 @@ func TestClient_FetchStatus_Cached(t *testing.T) {
 		case "/json/2/res.users/context_get":
 			contextGetCount++
 			_ = json.NewEncoder(w).Encode(map[string]interface{}{"uid": 2})
-		case "/json/2/hr.employee/search_read":
+		case "/json/2/hr.employee/search_read", "/json/2/hr.employee.public/search_read":
 			employeeSearchCount++
 			_ = json.NewEncoder(w).Encode([]map[string]interface{}{
 				{
@@ -82,6 +88,15 @@ func TestClient_FetchStatus_Cached(t *testing.T) {
 					"hours_today":      3.0,
 				},
 			})
+		case "/json/2/hr.attendance/search_read":
+			_ = json.NewEncoder(w).Encode([]map[string]interface{}{
+				{
+					"id":           202,
+					"check_in":     "2026-09-24 05:30:00",
+					"check_out":    "2026-09-24 08:30:00",
+					"worked_hours": 3.0,
+				},
+			})
 		default:
 			http.NotFound(w, r)
 		}
@@ -89,7 +104,7 @@ func TestClient_FetchStatus_Cached(t *testing.T) {
 	defer ts.Close()
 
 	client := NewClient(ts.URL, "test-key")
-	client.SetCachedIDs(2, 105)
+	client.SetCachedIDs(2, 105, "Cached Admin")
 
 	status, err := client.FetchStatus(context.Background())
 	if err != nil {
@@ -99,8 +114,8 @@ func TestClient_FetchStatus_Cached(t *testing.T) {
 	if contextGetCount != 0 {
 		t.Errorf("expected 0 context_get requests with cached ID, got %d", contextGetCount)
 	}
-	if employeeSearchCount != 1 {
-		t.Errorf("expected exactly 1 employee search_read request with cached ID, got %d", employeeSearchCount)
+	if employeeSearchCount != 0 {
+		t.Errorf("expected 0 employee search_read requests with cached ID, got %d", employeeSearchCount)
 	}
 	if status.EmployeeName != "Cached Admin" {
 		t.Errorf("expected EmployeeName='Cached Admin', got %q", status.EmployeeName)

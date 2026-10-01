@@ -22,11 +22,12 @@ var (
 
 // Client interacts with the Odoo JSON-2 API.
 type Client struct {
-	BaseURL    string
-	APIKey     string
-	HTTPClient *http.Client
-	UserID     int
-	EmployeeID int
+	BaseURL      string
+	APIKey       string
+	HTTPClient   *http.Client
+	UserID       int
+	EmployeeID   int
+	EmployeeName string
 }
 
 func NewClient(baseURL, apiKey string) *Client {
@@ -46,9 +47,10 @@ func NewClient(baseURL, apiKey string) *Client {
 	}
 }
 
-func (c *Client) SetCachedIDs(uid, empID int) {
+func (c *Client) SetCachedIDs(uid, empID int, empName string) {
 	c.UserID = uid
 	c.EmployeeID = empID
+	c.EmployeeName = empName
 }
 
 type ContextResponse struct {
@@ -140,6 +142,7 @@ func (c *Client) GetUID(ctx context.Context) (int, error) {
 	if ctxResp.UID <= 0 {
 		return 0, fmt.Errorf("odoo: invalid UID received: %d", ctxResp.UID)
 	}
+	log.Println("User ID: ", ctxResp.UID)
 	return ctxResp.UID, nil
 }
 
@@ -152,49 +155,13 @@ func (c *Client) GetEmployee(ctx context.Context, uid int) (*Employee, error) {
 		"fields": []string{
 			"id",
 			"name",
-			"attendance_state",
-			"last_check_in",
-			"last_check_out",
-			"hours_today",
-			"total_overtime",
 		},
 		"limit": 1,
 	}
 
 	log.Println("Calling api call to get user data")
 	var employees []Employee
-	if err := c.post(ctx, "/json/2/hr.employee/search_read", req, &employees); err != nil {
-		return nil, err
-	}
-
-	if len(employees) == 0 {
-		return nil, ErrNoEmployeeLinked
-	}
-
-	return &employees[0], nil
-}
-
-// GetEmployeeByID retrieves the hr.employee by its employee ID (1 request).
-func (c *Client) GetEmployeeByID(ctx context.Context, empID int) (*Employee, error) {
-	req := map[string]interface{}{
-		"domain": [][]interface{}{
-			{"id", "=", empID},
-		},
-		"fields": []string{
-			"id",
-			"name",
-			"attendance_state",
-			"last_check_in",
-			"last_check_out",
-			"hours_today",
-			"total_overtime",
-		},
-		"limit": 1,
-	}
-
-	log.Println("Calling api call to get employee data")
-	var employees []Employee
-	if err := c.post(ctx, "/json/2/hr.employee/search_read", req, &employees); err != nil {
+	if err := c.post(ctx, "/json/2/hr.employee.public/search_read", req, &employees); err != nil {
 		return nil, err
 	}
 
@@ -211,76 +178,76 @@ func (c *Client) FetchStatus(ctx context.Context) (*OdooStatus, error) {
 		ServerURL: c.BaseURL,
 	}
 
-	var emp *Employee
-	var uid int = c.UserID
-
-	// 1. If we have a cached EmployeeID, fetch directly (1 request)
-	if c.EmployeeID > 0 {
-		var err error
-		emp, err = c.GetEmployeeByID(ctx, c.EmployeeID)
-		if err != nil {
-			// If cached lookup fails, fallback to full resolution
-			emp = nil
-		}
-	}
-
-	// 2. Fallback: resolve UID via context_get and then employee via search_read
-	if emp == nil {
-		var err error
-		uid, err = c.GetUID(ctx)
+	// 1. If identity is not cached yet, resolve UID and Employee info once
+	if c.EmployeeID <= 0 || c.UserID <= 0 {
+		uid, err := c.GetUID(ctx)
 		if err != nil {
 			status.ErrorMessage = err.Error()
 			return status, err
 		}
 		c.UserID = uid
 
-		emp, err = c.GetEmployee(ctx, uid)
+		emp, err := c.GetEmployee(ctx, uid)
 		if err != nil {
 			status.ErrorMessage = err.Error()
 			return status, err
 		}
 		c.EmployeeID = emp.ID
+		c.EmployeeName = emp.Name
 	}
 
 	status.Connected = true
-	status.UserID = uid
-	status.EmployeeName = emp.Name
-	status.EmployeeID = emp.ID
-	status.AttendanceState = emp.AttendanceState
-	status.HoursToday = emp.HoursToday
+	status.UserID = c.UserID
+	status.EmployeeName = c.EmployeeName
+	status.EmployeeID = c.EmployeeID
+	status.AttendanceState = "checked_out"
 
-	if s, ok := emp.LastCheckIn.(string); ok && s != "" {
-		status.LastCheckIn = s
-	}
-	if s, ok := emp.LastCheckOut.(string); ok && s != "" {
-		status.LastCheckOut = s
+	// 2. Fetch only the latest attendance record from hr.attendance (1 request)
+	records, err := c.GetRecentAttendances(ctx, c.EmployeeID, 1)
+	if err == nil && len(records) > 0 {
+		status.RecentAttendances = records
+		latest := records[0]
+
+		if inStr, ok := latest.CheckIn.(string); ok && inStr != "" {
+			status.LastCheckIn = inStr
+		}
+
+		if outStr, ok := latest.CheckOut.(string); ok && outStr != "" {
+			status.LastCheckOut = outStr
+			status.AttendanceState = "checked_out"
+		} else {
+			status.AttendanceState = "checked_in"
+			status.LastCheckOut = ""
+		}
 	}
 
 	return status, nil
 }
 
 // // GetRecentAttendances retrieves the recent attendance logs for the employee.
-// func (c *Client) GetRecentAttendances(ctx context.Context, empID int, limit int) ([]AttendanceRecord, error) {
-// 	if limit <= 0 {
-// 		limit = 10
-// 	}
-// 	req := map[string]interface{}{
-// 		"domain": [][]interface{}{
-// 			{"employee_id", "=", empID},
-// 		},
-// 		"fields": []string{
-// 			"id",
-// 			"check_in",
-// 			"check_out",
-// 			"worked_hours",
-// 		},
-// 		"order": "check_in desc",
-// 		"limit": limit,
-// 	}
+func (c *Client) GetRecentAttendances(ctx context.Context, empID int, limit int) ([]AttendanceRecord, error) {
+	if limit <= 0 {
+		limit = 10
+	}
+	req := map[string]interface{}{
+		"domain": [][]interface{}{
+			{"employee_id", "=", empID},
+			{"date", "=", time.Now().Format("2006-01-02")},
+		},
+		"fields": []string{
+			"id",
+			"check_in",
+			"check_out",
+			"worked_hours",
+		},
+		"order": "check_in desc",
+		"limit": limit,
+	}
 
-// 	var records []AttendanceRecord
-// 	if err := c.post(ctx, "/json/2/hr.attendance/search_read", req, &records); err != nil {
-// 		return nil, err
-// 	}
-// 	return records, nil
-// }
+	log.Println("Fetching recent attendances")
+	var records []AttendanceRecord
+	if err := c.post(ctx, "/json/2/hr.attendance/search_read", req, &records); err != nil {
+		return nil, err
+	}
+	return records, nil
+}
