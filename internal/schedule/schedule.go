@@ -39,10 +39,10 @@ func (s Settings) GetLogThreshold() time.Duration {
 
 func DefaultSettings() Settings {
 	return Settings{
-		URL:                 "https://<your-instance>.odoo.com",
+		URL:                 "https://www.odoo.com/odoo",
 		APIKey:              "",
-		OdooSyncEnabled:     true,
-		Autostart:           true,
+		OdooSyncEnabled:     false,
+		Autostart:           false,
 		LogThresholdMinutes: 0,
 	}
 }

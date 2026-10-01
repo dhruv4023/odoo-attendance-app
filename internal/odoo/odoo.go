@@ -95,6 +95,7 @@ func (c *Client) post(ctx context.Context, endpoint string, payload interface{},
 		return errors.New("odoo: base URL and API key are required")
 	}
 
+
 	data, err := json.Marshal(payload)
 	if err != nil {
 		return fmt.Errorf("marshal request: %w", err)

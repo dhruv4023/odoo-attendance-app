@@ -590,12 +590,11 @@ func (a *AppService) postRedirect(expectedState string) {
 			log.Println("postRedirect: Status reached expected state on attempt 1")
 			return
 		}
-		log.Println("postRedirect: Status not reached expected state on attempt 1, waiting 45s for retry")
+		log.Println("postRedirect: Status not reached expected state on attempt 1, waiting 30s for retry")
 
-		// Attempt 2: If not updated, wait another 45 seconds and check once more
-		time.Sleep(45 * time.Second)
+		// Attempt 2: If not updated, wait another 30 seconds and check once more
+		time.Sleep(30 * time.Second)
 
-		// Check if user manually synced during the 45s wait
 		a.mu.Lock()
 		if a.lastOdooStatus != nil && (expectedState == "" || a.lastOdooStatus.AttendanceState == expectedState) {
 			a.mu.Unlock()

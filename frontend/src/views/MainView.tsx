@@ -35,6 +35,119 @@ interface MainViewProps {
   onRefresh: () => void;
 }
 
+// User-friendly error messages with fallback to "Something went wrong."
+function friendlyError(_err: any): string {
+  if (!_err) return 'Something went wrong.';
+
+  let raw = '';
+  if (typeof _err === 'string') {
+    raw = _err;
+  } else if (_err instanceof Error) {
+    raw = _err.message;
+  } else if (typeof _err === 'object') {
+    raw = String(_err.error_message || _err.errorMessage || _err.message || _err.error || '');
+  }
+
+  if (!raw.trim()) return 'Something went wrong.';
+
+  if (/401|unauthorized|invalid.*api.*key|api.*key.*invalid/i.test(raw)) {
+    return 'Invalid API key. Please check your settings.';
+  }
+  if (/403|forbidden/i.test(raw)) {
+    return 'Access denied — check your account permissions.';
+  }
+  if (/404|not found/i.test(raw)) {
+    return 'Odoo URL not found — check the server address.';
+  }
+  if (/502|503|504|unavailable/i.test(raw)) {
+    return 'Odoo server is unavailable. Try again later.';
+  }
+  if (/dial tcp|lookup|no such host|connection refused|network|timeout|server misbehaving|server.*error/i.test(raw)) {
+    return 'Could not reach server — check your connection.';
+  }
+
+  return 'Something went wrong.';
+}
+
+function parseTimestampMs(val?: any): number | null {
+  if (!val) return null;
+  try {
+    if (typeof val === 'string') {
+      if (val.length === 19 && val[10] === ' ') {
+        const d = new Date(val.replace(' ', 'T') + 'Z').getTime();
+        return isNaN(d) ? null : d;
+      }
+      const d = new Date(val).getTime();
+      return isNaN(d) ? null : d;
+    }
+    if (val instanceof Date) {
+      return isNaN(val.getTime()) ? null : val.getTime();
+    }
+    const d = new Date(String(val)).getTime();
+    return isNaN(d) ? null : d;
+  } catch {
+    return null;
+  }
+}
+
+function isSameCalendarDay(d1: Date, d2: Date): boolean {
+  return (
+    d1.getFullYear() === d2.getFullYear() &&
+    d1.getMonth() === d2.getMonth() &&
+    d1.getDate() === d2.getDate()
+  );
+}
+
+// Formats timestamps keeping minutes only (no seconds displayed)
+function formatTimeStr(iso?: any): string {
+  if (!iso) return '';
+  const ms = parseTimestampMs(iso);
+  if (!ms) return String(iso);
+  return new Date(ms).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+function formatDateTimeStr(iso?: any): string {
+  if (!iso) return '';
+  const ms = parseTimestampMs(iso);
+  if (!ms) return String(iso);
+  const d = new Date(ms);
+  const datePart = d.toLocaleDateString([], {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+  const timePart = d.toLocaleTimeString([], {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+  return `${datePart}, ${timePart}`;
+}
+
+// Unified duration generator (hours and minutes only, no seconds)
+function makeDuration(totalSecs: number, label: string, isActive: boolean) {
+  const totalMins = Math.floor(totalSecs / 60);
+  const hrs = Math.floor(totalMins / 60);
+  const mins = totalMins % 60;
+  return {
+    hours: hrs,
+    minutes: mins,
+    hoursStr: String(hrs).padStart(2, '0'),
+    minsStr: String(mins).padStart(2, '0'),
+    formatted: `${hrs}h ${mins}m`,
+    label,
+    isActive,
+  };
+}
+
+function makeEventInfo(type: 'check_in' | 'check_out', iso: any) {
+  return {
+    type,
+    timeStr: formatTimeStr(iso),
+    dateTimeStr: formatDateTimeStr(iso),
+    label: type === 'check_in' ? 'Last Check In Time' : 'Last Check Out Time',
+  };
+}
+
 export const MainView: React.FC<MainViewProps> = ({
   status,
   onRefresh,
@@ -64,11 +177,7 @@ export const MainView: React.FC<MainViewProps> = ({
   const [testingConn, setTestingConn] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string; employee?: string } | null>(null);
 
-  // Live clock ticker
-  useEffect(() => {
-    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
-    return () => clearInterval(timer);
-  }, []);
+
 
   // Load Settings, Odoo Status, and AppInfo
   const loadData = useCallback(async () => {
@@ -104,106 +213,10 @@ export const MainView: React.FC<MainViewProps> = ({
     });
   }, [loadData]);
 
-  const showToast = (text: string, isError = false) => {
+  const showToast = useCallback((text: string, isError = false) => {
     setMessage({ text, isError });
     setTimeout(() => setMessage(null), 4000);
-  };
-
-  const formatOdooErrorMessage = (err: any): string => {
-    if (!err) return 'Unknown error occurred';
-
-    let raw = '';
-    if (typeof err === 'string') {
-      raw = err;
-    } else if (err instanceof Error || (typeof err === 'object' && err.message)) {
-      raw = err.message;
-    } else {
-      try {
-        raw = JSON.stringify(err);
-      } catch {
-        raw = String(err);
-      }
-    }
-
-    raw = raw.trim();
-
-    // Extract status code if present (e.g. "odoo api error (401): ...")
-    let statusCode = '';
-    const statusMatch = raw.match(/\((\d{3})\)/);
-    if (statusMatch) {
-      statusCode = statusMatch[1];
-    }
-
-    // Check if there is JSON inside the string (e.g. after "odoo api error (401): ")
-    const jsonStart = raw.indexOf('{');
-    const jsonEnd = raw.lastIndexOf('}');
-    if (jsonStart !== -1 && jsonEnd > jsonStart) {
-      const jsonSubstr = raw.substring(jsonStart, jsonEnd + 1);
-      try {
-        const parsed = JSON.parse(jsonSubstr);
-
-        // Check common Odoo / Werkzeug fields
-        let msg = '';
-        if (parsed.message && typeof parsed.message === 'string') {
-          msg = parsed.message;
-        } else if (parsed.error_description && typeof parsed.error_description === 'string') {
-          msg = parsed.error_description;
-        } else if (parsed.error && typeof parsed.error === 'string') {
-          msg = parsed.error;
-        } else if (parsed.error && typeof parsed.error === 'object') {
-          if (parsed.error.data?.message && typeof parsed.error.data.message === 'string') {
-            msg = parsed.error.data.message;
-          } else if (parsed.error.message && typeof parsed.error.message === 'string') {
-            msg = parsed.error.message;
-          }
-        } else if (Array.isArray(parsed.arguments) && parsed.arguments.length > 0) {
-          if (typeof parsed.arguments[0] === 'string') {
-            msg = parsed.arguments[0];
-          }
-        }
-
-        if (msg) {
-          // Strip python / werkzeug prefixes if present (e.g. "401 Unauthorized: Invalid apikey" -> "Invalid apikey")
-          if (msg.includes(': ')) {
-            const parts = msg.split(': ');
-            const candidate = parts[parts.length - 1].trim();
-            if (candidate && !candidate.includes('\n')) {
-              msg = candidate;
-            }
-          }
-          return statusCode ? `${msg} (${statusCode})` : msg;
-        }
-      } catch {
-        // Fall through
-      }
-    }
-
-    // If HTML
-    if (raw.toLowerCase().includes('<!doctype') || raw.toLowerCase().includes('<html')) {
-      if (statusCode === '401') return 'Invalid API key or unauthorized (401)';
-      if (statusCode === '403') return 'Access forbidden: check permissions (403)';
-      if (statusCode === '404') return 'Odoo endpoint or database not found (404)';
-      if (statusCode === '502' || statusCode === '503' || statusCode === '504') return `Odoo server unavailable (${statusCode})`;
-      return statusCode ? `Server returned HTTP ${statusCode}` : 'Server connection failed';
-    }
-
-    // Clean standard prefixes
-    const cleaned = raw
-      .replace(/^Error:\s*/i, '')
-      .replace(/^odoo api error \(\d+\):\s*/i, '')
-      .replace(/^odoo:\s*/i, '')
-      .trim();
-
-    if (cleaned.startsWith('{') || cleaned.includes('Traceback (most recent call last)')) {
-      if (statusCode === '401') return 'Invalid API key or unauthorized (401)';
-      if (statusCode === '403') return 'Access denied (403)';
-      if (statusCode === '404') return 'Odoo endpoint not found (404)';
-      if (statusCode) return `Odoo error (${statusCode})`;
-      return 'Odoo request failed';
-    }
-
-    return statusCode && !cleaned.includes(statusCode) ? `${cleaned} (${statusCode})` : cleaned;
-  };
+  }, []);
 
   // Manual Odoo sync trigger
   const handleManualSync = async () => {
@@ -213,13 +226,13 @@ export const MainView: React.FC<MainViewProps> = ({
       const st = await AppService.SyncOdooStatus();
       if (st && st.connected) {
         setOdooStatus(st);
-        showToast(`Synced with Odoo: ${st.employee_name || 'Success'}`);
-      } else if (st && st.error_message) {
-        showToast(`Sync failed: ${formatOdooErrorMessage(st.error_message)}`, true);
+        showToast(`Synced successfully${st.employee_name ? ` — ${st.employee_name}` : ''}`);
+      } else {
+        showToast(friendlyError(st), true);
       }
       onRefresh();
-    } catch (e: any) {
-      showToast(`Sync failed: ${formatOdooErrorMessage(e)}`, true);
+    } catch (e) {
+      showToast(friendlyError(e), true);
     } finally {
       setIsSyncing(false);
     }
@@ -230,7 +243,6 @@ export const MainView: React.FC<MainViewProps> = ({
   const logs = useMemo(() => status?.logs ?? [], [status?.logs]);
   const lastLog = useMemo(() => (logs.length > 0 ? logs[logs.length - 1] : null), [logs]);
   const lastInLog = useMemo(() => logs.slice().reverse().find(l => l.type === 'check_in'), [logs]);
-  const lastOutLog = useMemo(() => logs.slice().reverse().find(l => l.type === 'check_out'), [logs]);
 
   const isCheckedIn = useMemo(() => {
     if (isLiveSyncConfigured) {
@@ -239,263 +251,131 @@ export const MainView: React.FC<MainViewProps> = ({
     return Boolean(lastLog ? lastLog.type === 'check_in' : status?.checked_in);
   }, [isLiveSyncConfigured, odooStatus?.attendance_state, lastLog, status?.checked_in]);
 
+  // Attendance timer — runs 30s interval ONLY while the employee is checked in and visible.
+  // Stops immediately when checked out (automatic cleanup on isCheckedIn transition).
+  // When window becomes visible: snaps currentTime immediately, and restarts timer if checked in.
+  useEffect(() => {
+    let timerId: ReturnType<typeof setInterval> | null = null;
+
+    const start = () => {
+      if (!isCheckedIn || document.hidden) return;
+      if (timerId !== null) return;
+      timerId = setInterval(() => setCurrentTime(new Date()), 30_000);
+    };
+
+    const stop = () => {
+      if (timerId !== null) {
+        clearInterval(timerId);
+        timerId = null;
+      }
+    };
+
+    const onVisibilityChange = () => {
+      if (document.hidden) {
+        stop();
+      } else {
+        setCurrentTime(new Date());
+        if (isCheckedIn) {
+          start();
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', onVisibilityChange);
+
+    if (isCheckedIn) {
+      start();
+    }
+
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+      stop();
+    };
+  }, [isCheckedIn]);
+
   const employeeName = isLiveSyncConfigured
     ? (odooStatus?.employee_name || settings?.employee_name || '')
     : (status?.employee_name || '');
 
-  const parseTimestampMs = (val?: any): number | null => {
-    if (!val) return null;
-    try {
-      if (typeof val === 'string') {
-        if (val.length === 19 && val[10] === ' ') {
-          const d = new Date(val.replace(' ', 'T') + 'Z').getTime();
-          return isNaN(d) ? null : d;
-        }
-        const d = new Date(val).getTime();
-        return isNaN(d) ? null : d;
-      }
-      if (val instanceof Date) {
-        return isNaN(val.getTime()) ? null : val.getTime();
-      }
-      const d = new Date(String(val)).getTime();
-      return isNaN(d) ? null : d;
-    } catch {
-      return null;
-    }
-  };
-
-  const isSameCalendarDay = (d1: Date, d2: Date) => {
-    return (
-      d1.getFullYear() === d2.getFullYear() &&
-      d1.getMonth() === d2.getMonth() &&
-      d1.getDate() === d2.getDate()
-    );
-  };
-
-  const formatTimeStr = (iso?: any) => {
-    if (!iso) return '';
-    try {
-      const ms = parseTimestampMs(iso);
-      if (!ms) return String(iso);
-      const d = new Date(ms);
-      return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-    } catch {
-      return String(iso);
-    }
-  };
-
-  const formatDateTimeStr = (iso?: any) => {
-    if (!iso) return '';
-    try {
-      const ms = parseTimestampMs(iso);
-      if (!ms) return String(iso);
-      const d = new Date(ms);
-      const datePart = d.toLocaleDateString([], {
-        month: 'short',
-        day: 'numeric',
-        year: 'numeric',
-      });
-      const timePart = d.toLocaleTimeString([], {
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-      });
-      return `${datePart}, ${timePart}`;
-    } catch {
-      return String(iso);
-    }
-  };
-
   // Determine last check in / out time
   const lastEventInfo = useMemo(() => {
-    // If live sync is configured, show status fetched strictly from Odoo
     if (isLiveSyncConfigured) {
       if (!odooStatus) return null;
+      const target =
+        (odooStatus.attendance_state === 'checked_in' && odooStatus.last_check_in)
+          ? { type: 'check_in' as const, time: odooStatus.last_check_in }
+          : (odooStatus.attendance_state === 'checked_out' && odooStatus.last_check_out)
+            ? { type: 'check_out' as const, time: odooStatus.last_check_out }
+            : odooStatus.last_check_out
+              ? { type: 'check_out' as const, time: odooStatus.last_check_out }
+              : odooStatus.last_check_in
+                ? { type: 'check_in' as const, time: odooStatus.last_check_in }
+                : null;
 
-      if (odooStatus.attendance_state === 'checked_in' && odooStatus.last_check_in) {
-        const time = odooStatus.last_check_in;
-        const ms = parseTimestampMs(time);
-        if (ms && isSameCalendarDay(new Date(ms), currentTime)) {
-          return {
-            type: 'check_in' as const,
-            timeStr: formatTimeStr(time),
-            dateTimeStr: formatDateTimeStr(time),
-            label: 'Last Check In Time',
-          };
-        }
-      }
-      if (odooStatus.attendance_state === 'checked_out' && odooStatus.last_check_out) {
-        const time = odooStatus.last_check_out;
-        const ms = parseTimestampMs(time);
-        if (ms && isSameCalendarDay(new Date(ms), currentTime)) {
-          return {
-            type: 'check_out' as const,
-            timeStr: formatTimeStr(time),
-            dateTimeStr: formatDateTimeStr(time),
-            label: 'Last Check Out Time',
-          };
-        }
-      }
-      if (odooStatus.last_check_out) {
-        const ms = parseTimestampMs(odooStatus.last_check_out);
-        if (ms && isSameCalendarDay(new Date(ms), currentTime)) {
-          return {
-            type: 'check_out' as const,
-            timeStr: formatTimeStr(odooStatus.last_check_out),
-            dateTimeStr: formatDateTimeStr(odooStatus.last_check_out),
-            label: 'Last Check Out Time',
-          };
-        }
-      }
-      if (odooStatus.last_check_in) {
-        const ms = parseTimestampMs(odooStatus.last_check_in);
-        if (ms && isSameCalendarDay(new Date(ms), currentTime)) {
-          return {
-            type: 'check_in' as const,
-            timeStr: formatTimeStr(odooStatus.last_check_in),
-            dateTimeStr: formatDateTimeStr(odooStatus.last_check_in),
-            label: 'Last Check In Time',
-          };
+      if (target) {
+        const ms = parseTimestampMs(target.time);
+        if (ms && isSameCalendarDay(new Date(ms), new Date())) {
+          return makeEventInfo(target.type, target.time);
         }
       }
       return null;
     }
 
-    // Otherwise show as per last log recorded locally
     if (lastLog) {
-      const isCheckIn = lastLog.type === 'check_in';
-      return {
-        type: isCheckIn ? ('check_in' as const) : ('check_out' as const),
-        timeStr: formatTimeStr(lastLog.timestamp),
-        dateTimeStr: formatDateTimeStr(lastLog.timestamp),
-        label: isCheckIn ? 'Last Check In Time' : 'Last Check Out Time',
-      };
+      return makeEventInfo(lastLog.type === 'check_in' ? 'check_in' : 'check_out', lastLog.timestamp);
     }
 
     return null;
-  }, [isLiveSyncConfigured, odooStatus, lastLog, currentTime]);
+  }, [isLiveSyncConfigured, odooStatus, lastLog]);
 
-  // Detailed working duration for hero timer
+  // Detailed working duration for hero timer (minutes only)
+  // When checked in: calculates live duration using currentTime.
+  // When checked out: calculates static duration from Odoo/logs (does not need periodic currentTime updates).
   const workingDuration = useMemo(() => {
+    if (isCheckedIn) {
+      const startIso = isLiveSyncConfigured ? odooStatus?.last_check_in : lastInLog?.timestamp;
+      const startMs = parseTimestampMs(startIso);
+      if (!startMs) return null;
+      const diffSecs = Math.max(0, Math.floor((currentTime.getTime() - startMs) / 1000));
+      return makeDuration(diffSecs, 'Active Working Duration', true);
+    }
+
+    // Checked out: calculate today's worked duration
+    let totalSecs = 0;
     if (isLiveSyncConfigured) {
-      if (isCheckedIn) {
-        const startMs = parseTimestampMs(odooStatus?.last_check_in);
-        if (!startMs) return null;
-
-        const diffMs = Math.max(0, currentTime.getTime() - startMs);
-        const totalSecs = Math.floor(diffMs / 1000);
-        const hrs = Math.floor(totalSecs / 3600);
-        const mins = Math.floor((totalSecs % 3600) / 60);
-        const secs = totalSecs % 60;
-        return {
-          hours: hrs,
-          minutes: mins,
-          seconds: secs,
-          hoursStr: String(hrs).padStart(2, '0'),
-          minsStr: String(mins).padStart(2, '0'),
-          secsStr: String(secs).padStart(2, '0'),
-          formatted: `${hrs}h ${mins}m ${secs}s`,
-          label: 'Active Working Duration',
-          isActive: true,
-        };
-      }
-
-      // When Checked Out in Live Sync: Calculate today's worked duration strictly from Odoo
-      let totalSecs = 0;
       if (odooStatus?.hours_today && odooStatus.hours_today > 0) {
         totalSecs = Math.floor(odooStatus.hours_today * 3600);
       } else if (odooStatus?.last_check_in && odooStatus?.last_check_out) {
         const inMs = parseTimestampMs(odooStatus.last_check_in);
         const outMs = parseTimestampMs(odooStatus.last_check_out);
-        if (inMs && outMs && outMs >= inMs) {
-          const outDate = new Date(outMs);
-          if (isSameCalendarDay(outDate, currentTime)) {
-            totalSecs = Math.floor((outMs - inMs) / 1000);
-          }
+        if (inMs && outMs && outMs >= inMs && isSameCalendarDay(new Date(outMs), new Date())) {
+          totalSecs = Math.floor((outMs - inMs) / 1000);
         }
       }
+    } else {
+      let sumMs = 0;
+      let openInMs: number | null = null;
+      const today = new Date();
+      for (const logItem of logs) {
+        const itemMs = parseTimestampMs(logItem.timestamp);
+        if (!itemMs || !isSameCalendarDay(new Date(itemMs), today)) continue;
 
-      if (totalSecs > 0) {
-        const hrs = Math.floor(totalSecs / 3600);
-        const mins = Math.floor((totalSecs % 3600) / 60);
-        const secs = totalSecs % 60;
-        return {
-          hours: hrs,
-          minutes: mins,
-          seconds: secs,
-          hoursStr: String(hrs).padStart(2, '0'),
-          minsStr: String(mins).padStart(2, '0'),
-          secsStr: String(secs).padStart(2, '0'),
-          formatted: `${hrs}h ${mins}m`,
-          label: "Today's Worked Duration",
-          isActive: false,
-        };
-      }
-
-      return null;
-    }
-
-    // Local mode (isLiveSyncConfigured is false)
-    if (isCheckedIn) {
-      const startMs = parseTimestampMs(lastInLog?.timestamp);
-      if (!startMs) return null;
-
-      const diffMs = Math.max(0, currentTime.getTime() - startMs);
-      const totalSecs = Math.floor(diffMs / 1000);
-      const hrs = Math.floor(totalSecs / 3600);
-      const mins = Math.floor((totalSecs % 3600) / 60);
-      const secs = totalSecs % 60;
-      return {
-        hours: hrs,
-        minutes: mins,
-        seconds: secs,
-        hoursStr: String(hrs).padStart(2, '0'),
-        minsStr: String(mins).padStart(2, '0'),
-        secsStr: String(secs).padStart(2, '0'),
-        formatted: `${hrs}h ${mins}m ${secs}s`,
-        label: 'Active Working Duration',
-        isActive: true,
-      };
-    }
-
-    // Local Checked Out: Calculate from local logs sum
-    let sumMs = 0;
-    let openInMs: number | null = null;
-    for (const logItem of logs) {
-      const itemMs = parseTimestampMs(logItem.timestamp);
-      if (!itemMs) continue;
-      const itemDate = new Date(itemMs);
-      if (!isSameCalendarDay(itemDate, currentTime)) continue;
-
-      if (logItem.type === 'check_in') {
-        openInMs = itemMs;
-      } else if (logItem.type === 'check_out' && openInMs !== null) {
-        if (itemMs >= openInMs) {
-          sumMs += itemMs - openInMs;
+        if (logItem.type === 'check_in') {
+          openInMs = itemMs;
+        } else if (logItem.type === 'check_out' && openInMs !== null) {
+          if (itemMs >= openInMs) sumMs += itemMs - openInMs;
+          openInMs = null;
         }
-        openInMs = null;
       }
+      totalSecs = Math.floor(sumMs / 1000);
     }
-    if (sumMs > 0) {
-      const totalSecs = Math.floor(sumMs / 1000);
-      const hrs = Math.floor(totalSecs / 3600);
-      const mins = Math.floor((totalSecs % 3600) / 60);
-      const secs = totalSecs % 60;
-      return {
-        hours: hrs,
-        minutes: mins,
-        seconds: secs,
-        hoursStr: String(hrs).padStart(2, '0'),
-        minsStr: String(mins).padStart(2, '0'),
-        secsStr: String(secs).padStart(2, '0'),
-        formatted: `${hrs}h ${mins}m`,
-        label: "Today's Worked Duration",
-        isActive: false,
-      };
+
+    if (totalSecs > 0) {
+      return makeDuration(totalSecs, "Today's Worked Duration", false);
     }
 
     return null;
-  }, [isLiveSyncConfigured, isCheckedIn, odooStatus, lastInLog, logs, currentTime]);
+  }, [isLiveSyncConfigured, isCheckedIn, odooStatus, lastInLog, logs, isCheckedIn ? currentTime : null]);
 
   // Check In Handler - checks after 30 seconds
   const handleCheckIn = async () => {
@@ -504,13 +384,13 @@ export const MainView: React.FC<MainViewProps> = ({
     try {
       const res = await AppService.CheckIn();
       if (res.ok) {
-        showToast('Check-in initiated. Syncing status in 30s...');
+        showToast('Check-in recorded successfully!');
         onRefresh();
-      } else if (res.message) {
-        showToast(res.message, true);
+      } else {
+        showToast(friendlyError(res), true);
       }
     } catch (e) {
-      showToast(String(e), true);
+      showToast(friendlyError(e), true);
     } finally {
       setActionLoading(false);
     }
@@ -523,13 +403,13 @@ export const MainView: React.FC<MainViewProps> = ({
     try {
       const res = await AppService.CheckOut();
       if (res.ok) {
-        showToast('Check-out initiated. Syncing status in 30s...');
+        showToast('Check-out recorded successfully!');
         onRefresh();
       } else {
-        showToast(res.message || 'Check-out failed', true);
+        showToast(friendlyError(res), true);
       }
     } catch (e) {
-      showToast(String(e), true);
+      showToast(friendlyError(e), true);
     } finally {
       setActionLoading(false);
     }
@@ -545,20 +425,20 @@ export const MainView: React.FC<MainViewProps> = ({
         if (res && res.connected) {
           setTestResult({
             success: true,
-            message: `Connected! Logged in as User #${res.user_id}, Employee: ${res.employee_name} (#${res.employee_id})`,
+            message: `Connected! Employee: ${res.employee_name || 'Unknown'}`,
             employee: res.employee_name,
           });
         } else {
           setTestResult({
             success: false,
-            message: formatOdooErrorMessage(res?.error_message || 'Connection failed. Please check URL and API Key.'),
+            message: friendlyError(res),
           });
         }
       }
     } catch (e: any) {
       setTestResult({
         success: false,
-        message: formatOdooErrorMessage(e),
+        message: friendlyError(e),
       });
     } finally {
       setTestingConn(false);
@@ -582,8 +462,8 @@ export const MainView: React.FC<MainViewProps> = ({
       setSettingsMsg({ text: 'Settings saved successfully!' });
       await loadData();
       setTimeout(() => setShowSettingsModal(false), 1000);
-    } catch (e: any) {
-      setSettingsMsg({ text: formatOdooErrorMessage(e), isError: true });
+    } catch (e) {
+      setSettingsMsg({ text: friendlyError(e), isError: true });
     } finally {
       setSavingSettings(false);
     }
@@ -591,9 +471,8 @@ export const MainView: React.FC<MainViewProps> = ({
 
   return (
     <div className="relative w-screen h-screen bg-[#1c1722] text-[#f8f7f9] flex flex-col justify-between select-none overflow-hidden font-sans">
-      {/* Ambient Background Glows */}
-      <div className="absolute top-1/4 left-1/4 w-[38rem] h-[38rem] bg-[#6b3e66]/25 rounded-full blur-[130px] pointer-events-none animate-pulse-subtle" />
-      <div className="absolute bottom-1/4 right-1/4 w-[38rem] h-[38rem] bg-[#7b4775]/20 rounded-full blur-[130px] pointer-events-none" />
+      {/* Ambient Background Glows — radial gradients (no blur filter) for optimal GPU/compositor performance */}
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_25%_25%,rgba(107,62,102,0.18),transparent_55%),radial-gradient(circle_at_75%_75%,rgba(123,71,117,0.14),transparent_55%)]" />
 
       {/* ── TOP BAR: App branding, Employee Badge & Actions ── */}
       <header className="w-full px-8 py-5 flex items-center justify-between z-20 border-b border-[#3d3248]/40 bg-[#1c1722]/60 backdrop-blur-md">
@@ -619,17 +498,16 @@ export const MainView: React.FC<MainViewProps> = ({
           {/* Odoo Live Sync Indicator Badge */}
           <div
             className="hidden sm:flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#251f2e] border border-[#3d3248] text-[11px] font-medium text-[#cfc9d6]"
-            title={odooStatus?.error_message ? formatOdooErrorMessage(odooStatus.error_message) : undefined}
+            title={odooStatus?.error_message ? friendlyError(odooStatus.error_message) : undefined}
           >
             <span
-              className={`w-2 h-2 rounded-full ${isLiveSyncConfigured ? 'bg-[#00A09D] animate-pulse' : 'bg-[#e05666]'
-                }`}
+              className={`w-2 h-2 rounded-full ${isLiveSyncConfigured ? 'bg-[#00A09D]' : 'bg-[#e05666]'}`}
             />
             <span>
               {isLiveSyncConfigured
                 ? 'Connected'
                 : settings?.odoo_sync_enabled && odooStatus?.error_message
-                  ? `Error: ${formatOdooErrorMessage(odooStatus.error_message)}`
+                  ? friendlyError(odooStatus.error_message)
                   : 'Offline / Local'}
             </span>
           </div>
@@ -724,14 +602,13 @@ export const MainView: React.FC<MainViewProps> = ({
             </span>
           </div>
 
-          {/* Current Time */}
+          {/* Current Time (minutes only) */}
           <div className="px-4 py-2 rounded-full bg-[#251f2e]/90 border border-[#3d3248] text-sm font-mono font-medium text-[#a69eb0] flex items-center gap-2 shadow-sm">
             <Clock className="w-4 h-4 text-[#00A09D]" />
             <span>
               {currentTime.toLocaleTimeString([], {
                 hour: '2-digit',
                 minute: '2-digit',
-                second: '2-digit',
               })}
             </span>
           </div>
@@ -745,13 +622,11 @@ export const MainView: React.FC<MainViewProps> = ({
                 : 'bg-gradient-to-b from-[#2b2336]/90 to-[#1f1927]/90 border-[#3d3248] shadow-[0_12px_40px_rgba(0,0,0,0.4)]'
               }`}
           >
-            {/* Ambient background glow */}
+            {/* Ambient background glow — radial gradients for zero compositor overhead */}
             <div
-              className={`absolute -top-16 -right-16 w-44 h-44 rounded-full blur-3xl pointer-events-none transition-all duration-500 ${isCheckedIn ? 'bg-[#00A09D]/15' : 'bg-[#6b3e66]/10'
-                }`}
-            />
-            <div
-              className={`absolute -bottom-16 -left-16 w-44 h-44 rounded-full blur-3xl pointer-events-none transition-all duration-500 ${isCheckedIn ? 'bg-[#6b3e66]/25' : 'bg-[#3d3248]/20'
+              className={`pointer-events-none absolute inset-0 transition-opacity duration-300 ${isCheckedIn
+                  ? 'bg-[radial-gradient(ellipse_at_top_right,rgba(0,160,157,0.12),transparent_65%),radial-gradient(ellipse_at_bottom_left,rgba(107,62,102,0.20),transparent_65%)]'
+                  : 'bg-[radial-gradient(ellipse_at_top_right,rgba(107,62,102,0.10),transparent_65%),radial-gradient(ellipse_at_bottom_left,rgba(61,50,72,0.18),transparent_65%)]'
                 }`}
             />
 
@@ -766,10 +641,7 @@ export const MainView: React.FC<MainViewProps> = ({
                   }`}
               >
                 {isCheckedIn ? (
-                  <span className="relative flex h-2 w-2">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#34d399] opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-[#34d399]"></span>
-                  </span>
+                  <span className="w-2 h-2 rounded-full bg-[#34d399] shadow-[0_0_8px_#34d399]" />
                 ) : (
                   <Timer className="w-3.5 h-3.5 text-[#a69eb0]" />
                 )}
@@ -779,18 +651,15 @@ export const MainView: React.FC<MainViewProps> = ({
               </div>
             </div>
 
-            {/* BIG DURATION HERO DISPLAY */}
+            {/* BIG DURATION HERO DISPLAY (minutes only) */}
             <div className="relative z-10 my-2">
               {workingDuration ? (
-                <div className="flex items-baseline justify-center gap-1 sm:gap-1.5 font-mono font-black text-white text-5xl sm:text-6xl md:text-7xl tracking-tight drop-shadow-md py-1">
+                <div className="flex items-baseline justify-center gap-1.5 font-mono font-black text-white text-5xl sm:text-6xl md:text-7xl tracking-tight drop-shadow-md py-1">
                   <span>{workingDuration.hoursStr}</span>
-                  <span className="text-xl sm:text-2xl md:text-3xl text-[#cfc9d6]/70 font-sans font-medium mr-1">h</span>
-                  <span className="text-white/30 text-3xl sm:text-4xl md:text-5xl font-sans">:</span>
+                  <span className="text-xl sm:text-2xl md:text-3xl text-[#cfc9d6]/70 font-sans font-medium mr-1.5">h</span>
+                  <span className="text-white/30 text-3xl sm:text-4xl md:text-5xl font-sans mr-1.5">:</span>
                   <span>{workingDuration.minsStr}</span>
-                  <span className="text-xl sm:text-2xl md:text-3xl text-[#cfc9d6]/70 font-sans font-medium mr-1">m</span>
-                  <span className="text-white/30 text-3xl sm:text-4xl md:text-5xl font-sans">:</span>
-                  <span className="text-[#00A09D]">{workingDuration.secsStr}</span>
-                  <span className="text-lg sm:text-xl md:text-2xl text-[#00A09D]/80 font-sans font-medium">s</span>
+                  <span className="text-xl sm:text-2xl md:text-3xl text-[#cfc9d6]/70 font-sans font-medium">m</span>
                 </div>
               ) : (
                 <div className="py-2 flex flex-col items-center justify-center">

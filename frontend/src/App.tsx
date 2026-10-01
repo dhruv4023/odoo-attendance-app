@@ -64,9 +64,7 @@ export const App: React.FC = () => {
   // Window 1: Main Application Window
   return (
     <div className="flex flex-col h-full bg-[#1c1722] text-[#f8f7f9] select-none overflow-hidden relative">
-      {/* Background ambient lighting with Odoo Brand colors */}
-      <div className="absolute -top-24 -left-24 w-80 h-80 bg-[#6b3e66]/25 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute -bottom-24 -right-24 w-80 h-80 bg-[#7b4775]/20 rounded-full blur-3xl pointer-events-none" />
+
 
       {/* Main Container */}
       <main className="flex-1 overflow-hidden z-10">

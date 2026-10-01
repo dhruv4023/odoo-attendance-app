@@ -75,9 +75,8 @@ export const ShutdownOverlay: React.FC<ShutdownOverlayProps> = ({ isOpen, action
 
   return (
     <div className="relative w-screen h-screen bg-[#1c1722] text-[#f8f7f9] flex flex-col justify-between select-none overflow-hidden font-sans">
-      {/* Dynamic Ambient Background Glows */}
-      <div className="absolute top-1/4 left-1/4 w-[36rem] h-[36rem] bg-[#6b3e66]/25 rounded-full blur-[120px] pointer-events-none" />
-      <div className="absolute bottom-1/4 right-1/4 w-[36rem] h-[36rem] bg-[#7b4775]/20 rounded-full blur-[120px] pointer-events-none" />
+      {/* Ambient Background Glows — radial gradient for optimal GPU performance */}
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_25%_25%,rgba(107,62,102,0.18),transparent_55%),radial-gradient(circle_at_75%_75%,rgba(123,71,117,0.14),transparent_55%)]" />
 
       {/* Top Bar */}
       <header className="w-full px-8 py-6 flex items-center justify-between z-20">

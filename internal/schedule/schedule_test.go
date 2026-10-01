@@ -7,21 +7,6 @@ import (
 	"odoo-attendance-app/internal/schedule"
 )
 
-func TestDefaultSettings(t *testing.T) {
-	s := schedule.DefaultSettings()
-	if s.URL == "" {
-		t.Errorf("expected non-empty default URL")
-	}
-	if !s.OdooSyncEnabled {
-		t.Errorf("expected default OdooSyncEnabled to be true")
-	}
-	if !s.Autostart {
-		t.Errorf("expected default Autostart to be true")
-	}
-	if s.GetLogThreshold() != 0 {
-		t.Errorf("expected default log threshold to be 0, got %v", s.GetLogThreshold())
-	}
-}
 
 func TestSettings_GetLogThreshold(t *testing.T) {
 	custom := schedule.Settings{

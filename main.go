@@ -81,6 +81,11 @@ func main() {
 		Name:             "main",
 		Hidden:           false,
 		HideOnEscape:     true,
+		StartState:       application.WindowStateNormal,
+		Width:            1024,
+		Height:           768,
+		MinWidth:         800,
+		MinHeight:        600,
 		URL:              "/",
 		BackgroundColour: application.NewRGBA(28, 22, 34, 255),
 	})
@@ -95,6 +100,11 @@ func main() {
 		Name:             "checkout",
 		Hidden:           true,
 		HideOnEscape:     true,
+		StartState:       application.WindowStateNormal,
+		Width:            1024,
+		Height:           768,
+		MinWidth:         800,
+		MinHeight:        600,
 		URL:              "/?window=checkout",
 		BackgroundColour: application.NewRGBA(28, 22, 34, 255),
 	})
