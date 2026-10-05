@@ -872,8 +872,9 @@ export const MainView: React.FC<MainViewProps> = ({
       {/* ── MODAL 2: APPLICATION & ODOO SETTINGS ── */}
       {showSettingsModal && (
         <div className="fixed inset-0 z-50 bg-[#141018]/80 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in">
-          <div className="relative w-full max-w-lg rounded-3xl bg-[#251f2e] border border-[#3d3248] p-6 shadow-2xl flex flex-col max-h-[88vh] overflow-y-auto">
-            <div className="flex items-center justify-between pb-4 border-b border-[#3d3248]">
+          <div className="relative w-full max-w-lg rounded-3xl bg-[#251f2e] border border-[#3d3248] shadow-2xl flex flex-col max-h-[88vh] overflow-hidden">
+            {/* Header - Fixed */}
+            <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-[#3d3248] shrink-0">
               <div className="flex items-center gap-2.5">
                 <div className="p-2 rounded-xl bg-[#6b3e66]/30 text-white">
                   <SettingsIcon className="w-5 h-5" />
@@ -894,18 +895,21 @@ export const MainView: React.FC<MainViewProps> = ({
             </div>
 
             {settingsMsg && (
-              <div
-                className={`mt-4 p-3 rounded-xl text-xs font-semibold flex items-center gap-2 border ${settingsMsg.isError
-                  ? 'bg-[#3f1925]/95 border-[#d9485e]/50 text-[#fca5a5]'
-                  : 'bg-[#132c2c]/95 border-[#00A09D]/50 text-[#a7f3d0]'
-                  }`}
-              >
-                <CheckCircle2 className="w-4 h-4 shrink-0" />
-                <span>{settingsMsg.text}</span>
+              <div className="px-6 pt-4 shrink-0">
+                <div
+                  className={`p-3 rounded-xl text-xs font-semibold flex items-center gap-2 border ${settingsMsg.isError
+                    ? 'bg-[#3f1925]/95 border-[#d9485e]/50 text-[#fca5a5]'
+                    : 'bg-[#132c2c]/95 border-[#00A09D]/50 text-[#a7f3d0]'
+                    }`}
+                >
+                  <CheckCircle2 className="w-4 h-4 shrink-0" />
+                  <span>{settingsMsg.text}</span>
+                </div>
               </div>
             )}
 
-            <div className="space-y-4 my-5">
+            {/* Body - Scrollable */}
+            <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
               {/* Odoo Live Sync Toggle */}
               <div className="rounded-2xl bg-[#1c1722]/80 border border-[#3d3248] p-4 flex items-center justify-between">
                 <div>
@@ -926,7 +930,7 @@ export const MainView: React.FC<MainViewProps> = ({
                 >
                   <span
                     className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform ${settingsOdooSyncEnabled ? 'translate-x-5' : 'translate-x-0'
-                      }`}
+                    }`}
                   />
                 </button>
               </div>
@@ -1042,13 +1046,14 @@ export const MainView: React.FC<MainViewProps> = ({
                 >
                   <span
                     className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform ${settingsAutostart ? 'translate-x-5' : 'translate-x-0'
-                      }`}
+                    }`}
                   />
                 </button>
               </div>
             </div>
 
-            <div className="pt-2 flex items-center justify-end gap-2 border-t border-[#3d3248]">
+            {/* Footer - Fixed */}
+            <div className="px-6 py-4 flex items-center justify-end gap-2 border-t border-[#3d3248] shrink-0 bg-[#251f2e]">
               <button
                 type="button"
                 onClick={() => setShowSettingsModal(false)}

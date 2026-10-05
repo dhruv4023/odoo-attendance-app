@@ -37,15 +37,24 @@ type LinuxLifecycleManager struct {
 	pendingDecisionCh chan string
 	done              chan struct{}
 	sigChan           chan os.Signal
+	decisionTimeout   time.Duration
 }
 
 // NewLinuxLifecycleManager creates a new LinuxLifecycleManager.
 func NewLinuxLifecycleManager(emitter EventEmitter) *LinuxLifecycleManager {
 	return &LinuxLifecycleManager{
-		emitter: emitter,
-		state:   StateRunning,
-		done:    make(chan struct{}),
+		emitter:         emitter,
+		state:           StateRunning,
+		done:            make(chan struct{}),
+		decisionTimeout: 60 * time.Second,
 	}
+}
+
+// SetDecisionTimeout sets the max duration to wait for user decision before cancelling.
+func (m *LinuxLifecycleManager) SetDecisionTimeout(d time.Duration) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.decisionTimeout = d
 }
 
 // SetPromptChecker sets a fallback or checkout callback that returns true if a reminder dialog should be prompted.
@@ -244,6 +253,10 @@ func (m *LinuxLifecycleManager) RequestAction(action string) (string, *dbus.Erro
 	decisionCh := make(chan string, 1)
 	m.pendingDecisionCh = decisionCh
 	m.state = StateCheckingOut
+	timeout := m.decisionTimeout
+	if timeout <= 0 {
+		timeout = 60 * time.Second
+	}
 	m.mu.Unlock()
 
 	m.emitter.Emit("shutdown-requested", map[string]string{
@@ -272,7 +285,7 @@ func (m *LinuxLifecycleManager) RequestAction(action string) (string, *dbus.Erro
 		m.mu.Unlock()
 		return decision, nil
 
-	case <-time.After(120 * time.Second):
+	case <-time.After(timeout):
 		log.Printf("lifecycle: timeout waiting for user decision on %s; cancelling action (staying alive)", act)
 		m.mu.Lock()
 		// Guard state reset on ownership: a stale timer from a previous request

@@ -50,7 +50,7 @@ function _handleAction(action, proceedFn) {
             new GLib.Variant('(s)', [action]),
             new GLib.VariantType('(s)'),
             Gio.DBusCallFlags.NONE,
-            120000,
+            150000,
             null,
             (conn, res) => {
                 try {
@@ -64,6 +64,11 @@ function _handleAction(action, proceedFn) {
                         log(`[Odoo Attendance App Extension] Action ${action} cancelled by user checkout.`);
                     }
                 } catch (err) {
+                    const isTimeout = err.message && (err.message.toLowerCase().includes('timeout') || err.message.toLowerCase().includes('timed out'));
+                    if (isTimeout) {
+                        log(`[Odoo Attendance App Extension] Attendance check timed out: ${err.message}. Cancelling action (keeping session alive).`);
+                        return;
+                    }
                     // Fail-open: If Odoo Attendance App is not running or D-Bus fails, always allow normal GNOME action
                     log(`[Odoo Attendance App Extension] D-Bus call finished with error: ${err.message}. Failing open.`);
                     _safeProceed(proceedFn);
@@ -71,6 +76,11 @@ function _handleAction(action, proceedFn) {
             }
         );
     } catch (e) {
+        const isTimeout = e.message && (e.message.toLowerCase().includes('timeout') || e.message.toLowerCase().includes('timed out'));
+        if (isTimeout) {
+            log(`[Odoo Attendance App Extension] Attendance check timed out: ${e.message}. Cancelling action (keeping session alive).`);
+            return;
+        }
         // Fail-open: If D-Bus call initiation fails, allow normal GNOME action
         log(`[Odoo Attendance App Extension] Failed to call D-Bus service: ${e.message}. Failing open.`);
         _safeProceed(proceedFn);

@@ -490,3 +490,35 @@ func TestLifecycle_RequestAction_ManagerStopped_ReturnsProceed(t *testing.T) {
 		t.Errorf("expected decision 'proceed' when manager stopped, got %s", decision)
 	}
 }
+
+func TestLifecycle_RequestAction_TimeoutCancelsAction(t *testing.T) {
+	emitter := &fakeEmitter{}
+	mgr := lifecycle.NewLinuxLifecycleManager(emitter)
+	mgr.SetPromptChecker(func() bool {
+		return true
+	})
+	mgr.SetDecisionTimeout(25 * time.Millisecond)
+
+	decision, err := mgr.RequestAction("shutdown")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if decision != "cancel" {
+		t.Errorf("expected decision 'cancel' on timeout, got %q", decision)
+	}
+	if mgr.GetState() != lifecycle.StateRunning {
+		t.Errorf("expected StateRunning after timeout, got %v", mgr.GetState())
+	}
+	events := emitter.Events()
+	var foundTimeoutEvent bool
+	for _, e := range events {
+		if e == "shutdown-dialog-closed" {
+			foundTimeoutEvent = true
+			break
+		}
+	}
+	if !foundTimeoutEvent {
+		t.Errorf("expected shutdown-dialog-closed event on timeout, got %v", events)
+	}
+}
+

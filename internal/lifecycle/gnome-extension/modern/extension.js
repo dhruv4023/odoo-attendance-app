@@ -202,7 +202,7 @@ export default class TimeCheckAttendanceExtension extends Extension {
                 new GLib.Variant('(s)', [action]),
                 new GLib.VariantType('(s)'),
                 Gio.DBusCallFlags.NONE,
-                120000,
+                150000,
                 null
             );
 
@@ -215,6 +215,11 @@ export default class TimeCheckAttendanceExtension extends Extension {
                 console.log(`[Odoo Attendance App Extension] Action ${action} cancelled by user checkout.`);
             }
         } catch (e) {
+            const isTimeout = e.message && (e.message.toLowerCase().includes('timeout') || e.message.toLowerCase().includes('timed out'));
+            if (isTimeout) {
+                console.warn(`[Odoo Attendance App Extension] Attendance check timed out: ${e.message}. Cancelling action (keeping session alive).`);
+                return;
+            }
             // Fail-open: If Odoo Attendance App is not running or D-Bus fails, always allow normal GNOME action
             console.warn(`[Odoo Attendance App Extension] D-Bus call failed: ${e.message}. Failing open with default action.`);
             this._safeProceed(proceedFn);

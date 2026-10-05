@@ -187,7 +187,7 @@ func (a *AppService) Startup(app *application.App) error {
 		}()
 	}
 
-	// Start check-in reminder notifications if last check-in/out is not today
+	// Start check-in reminder notifications if last check-in is not today
 	a.startCheckInReminderLoop()
 
 	return nil
@@ -734,7 +734,7 @@ func (a *AppService) GetAppExecutablePath() string {
 	return resolved
 }
 
-// startCheckInReminderLoop starts a background loop that sends a check-in reminder
+// Starts a background loop that sends a check-in reminder
 // notification every 5 minutes up to 6 times if the user has not checked in or recorded activity today.
 func (a *AppService) startCheckInReminderLoop() {
 	a.mu.Lock()
@@ -754,7 +754,13 @@ func (a *AppService) startCheckInReminderLoop() {
 		case <-time.After(3 * time.Second):
 		}
 
+		if a.lastOdooStatus != nil && a.lastOdooStatus.AttendanceState == "checked_in" {
+			log.Printf("Skipped to notify ")
+			return
+		}
+
 		if a.attendance == nil || a.attendance.IsCheckedIn() || a.attendance.HasActivityToday() {
+			log.Printf("Skipped to notify ")
 			return
 		}
 
