@@ -163,10 +163,12 @@ func (c *Client) GetEmployee(ctx context.Context, uid int) (*Employee, error) {
 	log.Println("Calling api call to get user data")
 	var employees []Employee
 	if err := c.post(ctx, "/json/2/hr.employee.public/search_read", req, &employees); err != nil {
+		log.Printf("Error getting employee: %v", err)
 		return nil, err
 	}
 
 	if len(employees) == 0 {
+		log.Printf("No employee linked to user ID: %d", uid)
 		return nil, ErrNoEmployeeLinked
 	}
 
@@ -222,7 +224,7 @@ func (c *Client) FetchStatus(ctx context.Context) (*OdooStatus, error) {
 		}
 	}
 
-	return status, nil
+	return status, err
 }
 
 // // GetRecentAttendances retrieves the recent attendance logs for the employee.
@@ -248,6 +250,7 @@ func (c *Client) GetRecentAttendances(ctx context.Context, empID int, limit int)
 	log.Println("Fetching recent attendances")
 	var records []AttendanceRecord
 	if err := c.post(ctx, "/json/2/hr.attendance/search_read", req, &records); err != nil {
+		log.Printf("error %v", err)
 		return nil, err
 	}
 	return records, nil
